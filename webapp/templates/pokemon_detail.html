@@ -1,0 +1,120 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="mb-4">
+    <a href="{{ url_for('pokemon_list') }}" class="btn btn-outline-secondary">← Back to Pokédex</a>
+</div>
+
+<div class="row">
+    <!-- Left Panel: Pokemon Info & Battle -->
+    <div class="col-lg-4 mb-4">
+        <div class="card shadow-sm mb-4" style="border-radius: 12px;">
+            <div class="card-body text-center">
+                <h2 class="fw-bold">{{ pokemon.name }}</h2>
+                <p class="text-muted mb-3">#{{ pokemon.number }}</p>
+                <span class="badge bg-info p-2 fs-6">{{ pokemon.type }}</span>
+                <div class="mt-4 p-3 bg-light rounded">
+                    <p class="mb-2"><strong>Species:</strong> {{ pokemon.species }}</p>
+                    <p class="mb-2"><strong>Height:</strong> {{ pokemon.height_m }} m</p>
+                    <p class="mb-0"><strong>Weight:</strong> {{ pokemon.weight_kg }} kg</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="card shadow-sm" style="border-radius: 12px;">
+            <div class="card-header bg-primary text-white">
+                <h5 class="mb-0">⚡ Abilities</h5>
+            </div>
+            <div class="card-body">
+                {% if pokemon.abilities %}
+                    {% for ability in pokemon.abilities %}
+                        <span class="badge bg-secondary p-2 d-block mb-2">{{ ability }}</span>
+                    {% endfor %}
+                {% else %}
+                    <p class="text-muted mb-0">No abilities</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <!-- Right Panel: Stats -->
+    <div class="col-lg-8">
+        <div class="card shadow-sm" style="border-radius: 12px;">
+            <div class="card-header bg-danger text-white">
+                <h5 class="mb-0">📊 Base Stats</h5>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-hover mb-0">
+                        <tbody>
+                            <tr>
+                                <td class="fw-bold" style="width: 40%;">HP</td>
+                                <td>
+                                    <div class="progress" role="progressbar" aria-valuenow="{{ pokemon.stats.hp }}" aria-valuemin="0" aria-valuemax="200">
+                                        <div class="progress-bar bg-danger" style="width: {{ pokemon.stats.hp / 2 }}%"></div>
+                                    </div>
+                                </td>
+                                <td class="text-end fw-bold">{{ pokemon.stats.hp }}</td>
+                            </tr>
+                            <tr>
+                                <td class="fw-bold">Attack</td>
+                                <td>
+                                    <div class="progress" role="progressbar" aria-valuenow="{{ pokemon.stats.attack }}" aria-valuemin="0" aria-valuemax="200">
+                                        <div class="progress-bar bg-warning" style="width: {{ pokemon.stats.attack / 2 }}%"></div>
+                                    </div>
+                                </td>
+                                <td class="text-end fw-bold">{{ pokemon.stats.attack }}</td>
+                            </tr>
+                            <tr>
+                                <td class="fw-bold">Defense</td>
+                                <td>
+                                    <div class="progress" role="progressbar" aria-valuenow="{{ pokemon.stats.defense }}" aria-valuemin="0" aria-valuemax="200">
+                                        <div class="progress-bar bg-info" style="width: {{ pokemon.stats.defense / 2 }}%"></div>
+                                    </div>
+                                </td>
+                                <td class="text-end fw-bold">{{ pokemon.stats.defense }}</td>
+                            </tr>
+                            <tr>
+                                <td class="fw-bold">Sp. Atk</td>
+                                <td>
+                                    <div class="progress" role="progressbar" aria-valuenow="{{ pokemon.stats.sp_atk }}" aria-valuemin="0" aria-valuemax="200">
+                                        <div class="progress-bar bg-success" style="width: {{ pokemon.stats.sp_atk / 2 }}%"></div>
+                                    </div>
+                                </td>
+                                <td class="text-end fw-bold">{{ pokemon.stats.sp_atk }}</td>
+                            </tr>
+                            <tr>
+                                <td class="fw-bold">Sp. Def</td>
+                                <td>
+                                    <div class="progress" role="progressbar" aria-valuenow="{{ pokemon.stats.sp_def }}" aria-valuemin="0" aria-valuemax="200">
+                                        <div class="progress-bar bg-primary" style="width: {{ pokemon.stats.sp_def / 2 }}%"></div>
+                                    </div>
+                                </td>
+                                <td class="text-end fw-bold">{{ pokemon.stats.sp_def }}</td>
+                            </tr>
+                            <tr>
+                                <td class="fw-bold">Speed</td>
+                                <td>
+                                    <div class="progress" role="progressbar" aria-valuenow="{{ pokemon.stats.speed }}" aria-valuemin="0" aria-valuemax="200">
+                                        <div class="progress-bar bg-secondary" style="width: {{ pokemon.stats.speed / 2 }}%"></div>
+                                    </div>
+                                </td>
+                                <td class="text-end fw-bold">{{ pokemon.stats.speed }}</td>
+                            </tr>
+                            <tr class="table-dark">
+                                <td class="fw-bold">Total</td>
+                                <td colspan="2" class="text-end"><strong class="fs-5">{{ pokemon.stats.total }}</strong></td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <div class="mt-4">
+            <button class="btn btn-warning btn-lg w-100" disabled title="Coming in Phase 2">✏️ Edit Pokémon</button>
+            <button class="btn btn-danger btn-lg w-100 mt-2" disabled title="Coming in Phase 2">🗑️ Delete Pokémon</button>
+        </div>
+    </div>
+</div>
+{% endblock %}
