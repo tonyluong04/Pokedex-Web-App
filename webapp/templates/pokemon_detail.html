@@ -51,7 +51,7 @@
                                 <td class="fw-bold" style="width: 40%;">HP</td>
                                 <td>
                                     <div class="progress" role="progressbar" aria-valuenow="{{ pokemon.stats.hp }}" aria-valuemin="0" aria-valuemax="200">
-                                        <div class="progress-bar bg-danger" style="width: {{ pokemon.stats.hp / 2 }}%"></div>
+                                        <div class="progress-bar bg-danger" style="width: {{ (pokemon.stats.hp / 2)|int }}%"></div>
                                     </div>
                                 </td>
                                 <td class="text-end fw-bold">{{ pokemon.stats.hp }}</td>
