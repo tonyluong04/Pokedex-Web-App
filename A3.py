@@ -468,6 +468,7 @@ class Pokedex:
 
     # Remove operations
     def remove_by_name(self, name):
+        try:
             p = self.find_by_name(name)
             self.entries.remove(p)
             self.dirty = True
@@ -870,13 +871,84 @@ def save_back(dex):
     except Exception as e:
         print("Save failed:", e)
 
+def build_pokedex():
+    """
+    Create a Pokedex instance and load Pokémon data
+    WITHOUT asking the user for input.
+    This is used by the web app.
+    """
+    dex = Pokedex.get_instance()
+
+    # Reset basic state so repeated calls don't accumulate weird state.
+    dex.entries = []
+    dex.text_path = ""
+    dex.json_path = ""
+    dex.dirty = False
+
+    # Try to auto-load from default files in the project folder.
+    # Adjust order if you prefer JSON only / TXT only.
+    default_files = ["pokemon.txt", "pokemon.json"]
+
+    for filename in default_files:
+        if os.path.exists(filename):
+            try:
+                detect_and_load(dex, filename)
+            except Exception:
+                # On web, silently ignore load errors for now
+                pass
+
+    return dex
+
+def get_pokemon_list_for_web():
+    """
+    Build the Pokédex and return a simple list of dictionaries
+    for the web app.
+
+    Each dict has keys:
+    - number
+    - name
+    - type
+    - hp
+    - attack
+    - defense
+    """
+    dex = build_pokedex()
+    pokemon_list = []
+
+    for p in dex.get_entries():
+        s = p.get_stats()
+        pokemon_dict = {
+            # national_no is stored as a string like "0001" – we keep it as string
+            "number": p.get_national_no(),
+            "name": p.get_name(),
+            "type": getattr(p.__class__, "TYPE_NAME", "Unknown"),
+            "hp": s.get_stat("hp"),
+            "attack": s.get_stat("attack"),
+            "defense": s.get_stat("defense"),
+        }
+        pokemon_list.append(pokemon_dict)
+
+    return pokemon_list
+
+
 
 
 # ---------------------------
 # Menu system
 # ---------------------------
 def main():
-    dex = build_pokedex()
+    dex = Pokedex.get_instance()
+
+    # Initial load
+    path = input("Enter file path (.txt or .json) or press Enter to skip: ").strip()
+    if path:
+        try:
+            loaded = detect_and_load(dex, path)
+            print(f"Loaded {loaded} Pokémon from '{path}'.")
+        except Exception as e:
+            print("Load failed:", e)
+    else:
+        print("Starting with an empty Pokédex.")
 
     # Main loop
     while True:
