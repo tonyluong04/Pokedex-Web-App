@@ -468,7 +468,6 @@ class Pokedex:
 
     # Remove operations
     def remove_by_name(self, name):
-        try:
             p = self.find_by_name(name)
             self.entries.remove(p)
             self.dirty = True
@@ -877,18 +876,7 @@ def save_back(dex):
 # Menu system
 # ---------------------------
 def main():
-    dex = Pokedex.get_instance()
-
-    # Initial load
-    path = input("Enter file path (.txt or .json) or press Enter to skip: ").strip()
-    if path:
-        try:
-            loaded = detect_and_load(dex, path)
-            print(f"Loaded {loaded} Pokémon from '{path}'.")
-        except Exception as e:
-            print("Load failed:", e)
-    else:
-        print("Starting with an empty Pokédex.")
+    dex = build_pokedex()
 
     # Main loop
     while True:
