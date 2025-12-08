@@ -1,0 +1,239 @@
+:root {
+    --pokeball-red: #DC143C;
+    --pokeball-white: #FFFFFF;
+    --pokeball-black: #1A1A1A;
+    --accent-gray: #F5F5F5;
+    --text-dark: #222222;
+}
+
+body {
+    background-color: var(--accent-gray);
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    color: var(--text-dark);
+}
+
+.navbar {
+    background-color: var(--pokeball-red);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+}
+
+.navbar-brand {
+    font-weight: bold;
+    font-size: 1.5rem;
+    color: var(--pokeball-white) !important;
+    text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.3);
+}
+
+.nav-link {
+    color: rgba(255, 255, 255, 0.95) !important;
+    margin-left: 1.5rem;
+    transition: all 0.3s ease;
+    font-weight: 500;
+}
+
+.nav-link:hover {
+    color: var(--pokeball-white) !important;
+    text-shadow: 0 0 8px rgba(220, 20, 60, 0.6);
+}
+
+.pokemon-card {
+    border: 3px solid var(--pokeball-red);
+    border-radius: 12px;
+    overflow: hidden;
+    transition: all 0.3s ease;
+    background-color: var(--pokeball-white);
+}
+
+.pokemon-card:hover {
+    transform: translateY(-8px);
+    box-shadow: 0 12px 32px rgba(220, 20, 60, 0.25);
+    border-color: var(--pokeball-black);
+}
+
+.card-header.bg-gradient {
+    background-color: var(--pokeball-red) !important;
+    color: var(--pokeball-white) !important;
+}
+
+.card {
+    background-color: var(--pokeball-white);
+    border: 2px solid var(--pokeball-red);
+    border-radius: 12px;
+}
+
+.form-control:focus,
+.form-select:focus {
+    border-color: var(--pokeball-red);
+    box-shadow: 0 0 0 0.2rem rgba(220, 20, 60, 0.25);
+}
+
+button.btn-primary {
+    background-color: var(--pokeball-red);
+    border: 2px solid var(--pokeball-red);
+    color: var(--pokeball-white);
+    font-weight: 600;
+    transition: all 0.3s ease;
+}
+
+button.btn-primary:hover {
+    background-color: #FF1744;
+    border-color: #FF1744;
+    box-shadow: 0 6px 16px rgba(220, 20, 60, 0.3);
+    transform: translateY(-2px);
+}
+
+button.btn-success {
+    background: linear-gradient(135deg, #00AA00 0%, #006600 100%);
+    border: 2px solid #00AA00;
+    color: var(--pokeball-white);
+    font-weight: 600;
+}
+
+button.btn-success:hover {
+    background: linear-gradient(135deg, #00CC00 0%, #008800 100%);
+    box-shadow: 0 6px 16px rgba(0, 170, 0, 0.3);
+}
+
+button.btn-warning {
+    background: linear-gradient(135deg, #FFA500 0%, #FF8C00 100%);
+    border: 2px solid #FFA500;
+    color: var(--pokeball-black);
+    font-weight: 600;
+}
+
+button.btn-warning:hover {
+    background: linear-gradient(135deg, #FFB81C 0%, #FFA500 100%);
+    box-shadow: 0 6px 16px rgba(255, 165, 0, 0.3);
+}
+
+button.btn-danger {
+    background-color: var(--pokeball-red);
+    border: 2px solid var(--pokeball-red);
+    color: var(--pokeball-white);
+    font-weight: 600;
+}
+
+button.btn-danger:hover {
+    background-color: #FF1744;
+    border-color: #FF1744;
+    box-shadow: 0 6px 16px rgba(220, 20, 60, 0.3);
+}
+
+button.btn-outline-secondary {
+    color: var(--pokeball-black);
+    border: 2px solid var(--pokeball-black);
+    font-weight: 600;
+}
+
+button.btn-outline-secondary:hover {
+    background-color: var(--pokeball-black);
+    color: var(--pokeball-white);
+}
+
+.progress-bar {
+    background-color: var(--pokeball-red);
+}
+
+.table tbody tr:hover {
+    background-color: rgba(220, 20, 60, 0.05);
+}
+
+.table-dark {
+    background-color: var(--pokeball-black) !important;
+    color: var(--pokeball-white) !important;
+}
+
+.table-dark td {
+    color: var(--pokeball-white) !important;
+}
+
+.badge {
+    font-size: 0.9rem;
+    padding: 0.5rem 0.75rem;
+    font-weight: 600;
+    border-radius: 20px;
+}
+
+.badge.bg-info {
+    background-color: var(--pokeball-red) !important;
+    color: var(--pokeball-white) !important;
+}
+
+.badge.bg-secondary {
+    background-color: var(--pokeball-black) !important;
+    color: var(--pokeball-white) !important;
+}
+
+.badge.bg-dark {
+    background-color: var(--pokeball-black) !important;
+    color: var(--pokeball-white) !important;
+}
+
+.card-header.bg-primary {
+    background-color: var(--pokeball-red) !important;
+    color: var(--pokeball-white) !important;
+}
+
+.card-header.bg-danger {
+    background-color: var(--pokeball-red) !important;
+    color: var(--pokeball-white) !important;
+}
+
+.card-header.bg-success {
+    background: linear-gradient(135deg, #00AA00 0%, #006600 100%) !important;
+    color: var(--pokeball-white) !important;
+}
+
+.card-footer {
+    background-color: var(--accent-gray) !important;
+    border-top: 2px solid var(--pokeball-red) !important;
+}
+
+.alert-info {
+    background-color: #E3F2FD;
+    border: 2px solid var(--pokeball-red);
+    color: var(--text-dark);
+}
+
+h1, h2, h3, h4, h5 {
+    color: var(--pokeball-black);
+    font-weight: 700;
+}
+
+.display-4 {
+    color: var(--pokeball-red);
+    text-shadow: 2px 2px 0 rgba(0, 0, 0, 0.1);
+}
+
+.text-muted {
+    color: #666666 !important;
+}
+
+footer {
+    background-color: var(--pokeball-black);
+    color: var(--pokeball-white) !important;
+    border-top: 3px solid var(--pokeball-red);
+}
+
+/* Responsive improvements */
+@media (max-width: 768px) {
+    .pokemon-card {
+        border-width: 2px;
+    }
+    
+    button {
+        font-size: 0.95rem;
+    }
+}
+
+/* Focus/Active states for accessibility */
+button:focus {
+    outline: 3px solid var(--pokeball-red);
+    outline-offset: 2px;
+}
+
+input:focus,
+select:focus {
+    outline: 2px solid var(--pokeball-red);
+    outline-offset: 2px;
+}
