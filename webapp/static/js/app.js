@@ -1,35 +1,56 @@
 /**
- * PokemonApp - Single Page Application (SPA) for Pokédex
+ * Pokédex v2.0 - Single Page Application (SPA)
  * 
- * Manages all frontend state, API communication, and UI rendering.
- * This is a pure ES6 class with async/await for clean asynchronous code.
+ * Personal project: Browse Pokémon via PokéAPI, manage personal Pokédex,
+ * battle other users, view statistics.
+ * 
+ * Tech: Vanilla ES6 JavaScript, Flask REST API, PostgreSQL
  */
-class PokemonApp {
+
+class PokemonAppV2 {
     constructor() {
-        this.pokemonList = [];
-        this.selectedPokemon = null;
-        this.types = [];
-        this.currentView = "home"; // Possible values: "home", "list", "detail", "create", "edit"
-        console.log("✅ PokemonApp initialized");
+        // User state
+        this.user = null;
+        this.isAuthenticated = false;
+        
+        // Pokémon state
+        this.pokedexResults = [];   // results shown in Pokedex tab (default list or search)
+        this.myPokeball = [];       // user's saved Pokémon (max 5)
+        this.selectedPokemon = null; // full detail payload from /api/pokemon/<idOrName>
+        this.spriteCache = {};       // pokemon_id -> sprite url
+
+        // Pokedex UI state
+        this.pokedexTab = "pokedex"; // "pokedex" | "pokeball"
+        this.searchQuery = "";
+        this.searchTimer = null;
+        
+        // UI state
+        this.currentView = "landing";
+        this.loading = false;
+        
+        console.log("✅ PokemonApp v2.0 initialized");
     }
 
     /**
      * Initialize app on page load
-     * 1. Load available types from API
-     * 2. Load all Pokémon from API
-     * 3. Render the initial home view
      */
     async init() {
         try {
             console.log("🔄 Starting app initialization...");
-            await this.loadTypes();
-            console.log("✅ Types loaded:", this.types);
             
-            await this.loadPokemonList();
-            console.log("✅ Pokémon list loaded:", this.pokemonList.length, "Pokémon");
+            // Check authentication status
+            await this.checkAuthStatus();
+
+            if (this.isAuthenticated) {
+                await this.loadMyPokeball();
+            }
             
-            this.currentView = "home";
+            // Render initial view:
+            // - If not logged in: landing page with welcome and buttons
+            // - If logged in: authenticated home page
+            this.currentView = this.isAuthenticated ? "home" : "landing";
             this.render();
+            
             console.log("✅ App initialization complete");
         } catch (err) {
             console.error("❌ Init failed:", err);
@@ -37,578 +58,797 @@ class PokemonApp {
         }
     }
 
-    // ===== API METHODS (async/await) =====
-
     /**
-     * Load available types from backend
-     * GET /api/types → ["Fire", "Grass"]
+     * Check if user is authenticated via /api/auth/status
      */
-    async loadTypes() {
+    async checkAuthStatus() {
         try {
-            const resp = await fetch("/api/types");
+            const resp = await fetch('/auth/status');
             if (resp.ok) {
-                this.types = await resp.json();
+                const data = await resp.json();
+                if (data.authenticated && data.user) {
+                    this.user = data.user;
+                    this.isAuthenticated = true;
+                    console.log("✅ User authenticated:", this.user.name);
+                } else {
+                    this.isAuthenticated = false;
+                }
             } else {
-                console.error("Failed to load types, status:", resp.status);
+                this.isAuthenticated = false;
             }
         } catch (err) {
-            console.error("Failed to load types:", err);
+            console.error("❌ Auth check failed:", err);
+            this.isAuthenticated = false;
         }
     }
 
     /**
-     * Load Pokémon list with optional filtering
-     * GET /api/pokemon?q={query}&type={type}
-     * 
-     * @param {string} query - Optional search term (name or number)
-     * @param {string} type - Optional type filter (Fire or Grass)
+     * Logout user
      */
-    async loadPokemonList(query = "", type = "") {
-        try {
-            let url = "/api/pokemon";
-            const params = new URLSearchParams();
-            
-            if (query.trim()) params.append("q", query.trim().toLowerCase());
-            if (type.trim()) params.append("type", type.trim());
-            
-            if (params.toString()) url += "?" + params.toString();
-            
-            console.log("📡 Fetching:", url);
-            const resp = await fetch(url);
-            
-            if (resp.ok) {
-                this.pokemonList = await resp.json();
-                console.log("📦 Got", this.pokemonList.length, "Pokémon");
-            } else {
-                console.error("Failed to load list, status:", resp.status);
-            }
-        } catch (err) {
-            console.error("Failed to load Pokémon list:", err);
+    logout() {
+        window.location.href = '/auth/logout';
+    }
+
+    // ===== API CALLS =====
+
+    async loadDefaultPokedex(limit = 12) {
+        const resp = await fetch(`/api/pokemon/default?limit=${encodeURIComponent(limit)}`);
+        if (!resp.ok) throw new Error("Failed to load default Pokémon");
+        const data = await resp.json();
+        this.pokedexResults = Array.isArray(data.results) ? data.results : [];
+    }
+
+    async searchPokemonByNameOrId(query) {
+        const resp = await fetch(`/api/pokemon/search?query=${encodeURIComponent(query)}`);
+        if (!resp.ok) throw new Error("Search failed");
+        const data = await resp.json();
+        this.pokedexResults = Array.isArray(data.results) ? data.results : [];
+    }
+
+    async loadPokemonDetail(idOrName) {
+        const resp = await fetch(`/api/pokemon/${encodeURIComponent(idOrName)}`);
+        if (!resp.ok) throw new Error("Failed to load Pokémon detail");
+        this.selectedPokemon = await resp.json();
+        if (this.selectedPokemon && this.selectedPokemon.id && this.selectedPokemon.sprite) {
+            this.spriteCache[this.selectedPokemon.id] = this.selectedPokemon.sprite;
         }
     }
 
-    /**
-     * Load full details for a single Pokémon
-     * GET /api/pokemon/{number}
-     * 
-     * @param {string} number - Pokémon national number (e.g., "0004")
-     */
-    async loadPokemonDetail(number) {
-        try {
-            console.log("📡 Fetching detail for Pokémon #" + number);
-            const resp = await fetch(`/api/pokemon/${number}`);
-            
-            if (resp.ok) {
-                this.selectedPokemon = await resp.json();
-                this.currentView = "detail";
-                console.log("📦 Loaded:", this.selectedPokemon.name);
-            } else if (resp.status === 404) {
-                this.showError(`Pokémon #${number} not found`);
-            } else {
-                console.error("Failed with status:", resp.status);
-                this.showError("Failed to load Pokémon details");
-            }
-        } catch (err) {
-            console.error("Failed to load Pokémon detail:", err);
-            this.showError("Network error while loading Pokémon");
+    async loadMyPokeball() {
+        if (!this.isAuthenticated) return;
+        const resp = await fetch("/api/me/pokeball");
+        if (!resp.ok) throw new Error("Failed to load My Pokéball");
+        const data = await resp.json();
+        this.myPokeball = Array.isArray(data.results) ? data.results : [];
+    }
+
+    async warmPokeballSprites() {
+        // Max 5 items; safe to fetch details to show sprites.
+        const missing = this.myPokeball
+            .map(p => Number(p.pokemon_id))
+            .filter(id => id && !this.spriteCache[id]);
+
+        if (!missing.length) return;
+
+        await Promise.all(
+            missing.map(async (id) => {
+                try {
+                    const resp = await fetch(`/api/pokemon/${encodeURIComponent(id)}`);
+                    if (!resp.ok) return;
+                    const d = await resp.json();
+                    if (d && d.id && d.sprite) this.spriteCache[d.id] = d.sprite;
+                } catch (_) {
+                    // ignore sprite failures
+                }
+            })
+        );
+    }
+
+    async addToPokeball(pokemonId) {
+        const resp = await fetch("/api/me/pokeball", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ pokemon_id: pokemonId }),
+        });
+        const data = await resp.json().catch(() => ({}));
+        if (!resp.ok) {
+            throw new Error(data.error || "Failed to add to Pokéball");
         }
+        await this.loadMyPokeball();
     }
 
-    // ===== ACTION METHODS =====
-
-    /**
-     * Show home view
-     */
-    showHome() {
-        this.currentView = "home";
-        this.render();
+    async removeFromPokeball(pokemonId) {
+        const resp = await fetch(`/api/me/pokeball/${encodeURIComponent(pokemonId)}`, { method: "DELETE" });
+        const data = await resp.json().catch(() => ({}));
+        if (!resp.ok) {
+            throw new Error(data.error || "Failed to remove from Pokéball");
+        }
+        await this.loadMyPokeball();
     }
 
-    /**
-     * Show list view (Pokédex page)
-     */
-    showList() {
-        this.currentView = "list";
-        this.render();
+    // ===== UI HELPERS =====
+
+    isInPokeball(pokemonId) {
+        return this.myPokeball.some(p => Number(p.pokemon_id) === Number(pokemonId));
     }
 
-    /**
-     * Show detail view for a specific Pokémon
-     * @param {string} number - Pokémon national number
-     */
-    async showDetail(number) {
-        await this.loadPokemonDetail(number);
-        this.render();
+    formatDexNumber(n) {
+        const num = Number(n || 0);
+        if (!num) return "";
+        return "#" + String(num).padStart(3, "0");
     }
 
-    /**
-     * Show create form (Phase 2)
-     */
-    showCreate() {
-        this.currentView = "create";
-        this.render();
+    typeBadge(type) {
+        const t = (type || "").toLowerCase();
+        const map = {
+            fire: "bg-danger",
+            water: "bg-primary",
+            grass: "bg-success",
+            electric: "bg-warning text-dark",
+            poison: "bg-purple",
+            flying: "bg-info",
+            bug: "bg-success",
+            normal: "bg-secondary",
+            ground: "bg-warning text-dark",
+            rock: "bg-secondary",
+            psychic: "bg-info",
+            ice: "bg-info",
+            dragon: "bg-danger",
+            dark: "bg-dark",
+            steel: "bg-secondary",
+            fairy: "bg-danger",
+            fighting: "bg-danger",
+            ghost: "bg-dark",
+        };
+        return map[t] || "bg-secondary";
     }
 
-    /**
-     * Apply filters from search and type dropdown
-     * Reads current values from HTML inputs and filters list
-     */
-    async applyFilters() {
-        const query = document.getElementById("search-input").value;
-        const type = document.getElementById("type-filter").value;
-        
-        console.log("🔍 Applying filters - query:", query, "type:", type);
-        await this.loadPokemonList(query, type);
-        this.render();
+    renderPokemonCard(p, { showAddButton = true, context = "pokedex" } = {}) {
+        const id = p.id ?? p.pokemon_id;
+        const name = p.name ?? p.pokemon_name ?? "";
+        const number = p.number ?? p.pokemon_number ?? id;
+        const sprite = p.sprite || "";
+        const inBall = this.isInPokeball(id);
+
+        const col = document.createElement("div");
+        col.className = "col";
+
+        col.innerHTML = `
+            <div class="pokemon-card card text-center shadow-sm h-100" data-pokemon-id="${id}">
+                <div class="card-body py-3">
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <span class="badge bg-dark">${this.formatDexNumber(number)}</span>
+                    </div>
+                    <div class="mb-2" style="min-height: 72px;">
+                        ${sprite ? `<img src="${sprite}" alt="${name}" style="width:72px;height:72px; image-rendering: pixelated;">` : ""}
+                    </div>
+                    <div class="fw-bold text-capitalize">${name}</div>
+                    <div class="mt-2 d-grid gap-2">
+                        ${
+                            showAddButton
+                                ? (inBall
+                                    ? `<button class="btn btn-outline-secondary btn-sm" data-action="remove">Remove</button>`
+                                    : `<button class="btn btn-primary btn-sm" data-action="add">Add to Pokéball</button>`)
+                                : ``
+                        }
+                    </div>
+                </div>
+            </div>
+        `;
+
+        const card = col.querySelector("[data-pokemon-id]");
+        card.onclick = async (e) => {
+            const btn = e.target.closest("button[data-action]");
+            if (btn) return; // handled below
+            try {
+                await this.loadPokemonDetail(id);
+                this.render();
+            } catch (err) {
+                this.showError(err.message || "Failed to load details");
+            }
+        };
+
+        const addBtn = col.querySelector('button[data-action="add"]');
+        if (addBtn) {
+            addBtn.onclick = async (e) => {
+                e.stopPropagation();
+                try {
+                    await this.addToPokeball(id);
+                    // keep detail panel in sync
+                    if (this.selectedPokemon && Number(this.selectedPokemon.id) === Number(id)) {
+                        // no-op; state already updated via loadMyPokeball
+                    }
+                    this.render();
+                } catch (err) {
+                    this.showError(err.message || "Add failed");
+                }
+            };
+        }
+
+        const removeBtn = col.querySelector('button[data-action="remove"]');
+        if (removeBtn) {
+            removeBtn.onclick = async (e) => {
+                e.stopPropagation();
+                try {
+                    await this.removeFromPokeball(id);
+                    this.render();
+                } catch (err) {
+                    this.showError(err.message || "Remove failed");
+                }
+            };
+        }
+
+        return col;
     }
 
-    /**
-     * Show error message to user (simple alert for Phase 1)
-     * @param {string} message - Error message to display
-     */
-    showError(message) {
-        alert("❌ " + message);
+    renderDetailPanel() {
+        const d = this.selectedPokemon;
+        const wrap = document.createElement("div");
+
+        if (!d) {
+            wrap.innerHTML = `
+                <div class="card h-100">
+                    <div class="card-header"><strong>Pokémon Details</strong></div>
+                    <div class="card-body text-muted">
+                        Click a Pokémon card to view its stats here.
+                    </div>
+                </div>
+            `;
+            return wrap;
+        }
+
+        const inBall = this.isInPokeball(d.id);
+        const ballFull = this.myPokeball.length >= 5 && !inBall;
+
+        const types = Array.isArray(d.types) ? d.types : [];
+        const stats = Array.isArray(d.stats) ? d.stats : [];
+
+        const typeHtml = types.length
+            ? types.map(t => `<span class="badge ${this.typeBadge(t)} me-1 text-capitalize">${t}</span>`).join("")
+            : `<span class="text-muted">None</span>`;
+
+        const statsHtml = stats.length
+            ? stats.map(s => {
+                const base = Number(s.base || 0);
+                const pct = Math.max(0, Math.min(100, Math.round((base / 200) * 100)));
+                return `
+                    <div class="mb-2">
+                        <div class="d-flex justify-content-between">
+                            <small class="text-uppercase text-muted">${s.name}</small>
+                            <small class="fw-bold">${base}</small>
+                        </div>
+                        <div class="progress" style="height: 8px;">
+                            <div class="progress-bar" role="progressbar" style="width: ${pct}%"></div>
+                        </div>
+                    </div>
+                `;
+            }).join("")
+            : `<div class="text-muted">No stats available.</div>`;
+
+        wrap.innerHTML = `
+            <div class="card h-100">
+                <div class="card-body">
+                    <div class="text-center mb-3">
+                        ${d.sprite ? `<img src="${d.sprite}" alt="${d.name}" style="width:160px;height:160px;">` : ""}
+                    </div>
+                    <h4 class="text-center mb-1">${this.formatDexNumber(d.number)} - <span class="text-capitalize">${d.name}</span></h4>
+                    <div class="text-center mb-3">
+                        ${
+                            inBall
+                                ? `<button class="btn btn-outline-secondary btn-sm" id="detail-remove">Remove from Pokéball</button>`
+                                : `<button class="btn btn-primary btn-sm" id="detail-add" ${ballFull ? "disabled" : ""}>Add to Pokéball</button>`
+                        }
+                        ${ballFull ? `<div class="small text-muted mt-2">Pokéball is full (max 5).</div>` : ``}
+                    </div>
+
+                    <div class="mb-3">
+                        <div class="fw-bold mb-1">Pokémon Info</div>
+                        <div class="mb-2">${typeHtml}</div>
+                        <div class="row small">
+                            <div class="col-6 text-muted">Height: <span class="text-dark">${d.height ?? "-"}</span></div>
+                            <div class="col-6 text-muted">Weight: <span class="text-dark">${d.weight ?? "-"}</span></div>
+                        </div>
+                        <div class="small text-muted mt-1">Base XP: <span class="text-dark">${d.base_experience ?? "-"}</span></div>
+                    </div>
+
+                    <div>
+                        <div class="fw-bold mb-2">Base Stats</div>
+                        ${statsHtml}
+                    </div>
+                </div>
+            </div>
+        `;
+
+        const addBtn = wrap.querySelector("#detail-add");
+        if (addBtn) {
+            addBtn.onclick = async () => {
+                try {
+                    await this.addToPokeball(d.id);
+                    this.render();
+                } catch (err) {
+                    this.showError(err.message || "Add failed");
+                }
+            };
+        }
+        const removeBtn = wrap.querySelector("#detail-remove");
+        if (removeBtn) {
+            removeBtn.onclick = async () => {
+                try {
+                    await this.removeFromPokeball(d.id);
+                    this.render();
+                } catch (err) {
+                    this.showError(err.message || "Remove failed");
+                }
+            };
+        }
+
+        return wrap;
     }
 
-    // ===== RENDER METHODS =====
+    // ===== VIEWS =====
 
-    /**
-     * Main render dispatcher
-     * Clears #app and renders appropriate view based on currentView
-     */
     render() {
         const app = document.getElementById("app");
         app.innerHTML = "";
         
         console.log("🎨 Rendering view:", this.currentView);
 
-        if (this.currentView === "home") {
+        if (this.currentView === "landing") {
+            app.appendChild(this.renderLanding());
+        } else if (this.currentView === "login") {
+            app.appendChild(this.renderLogin());
+        } else if (this.currentView === "home") {
             app.appendChild(this.renderHome());
-        } else if (this.currentView === "list") {
-            app.appendChild(this.renderList());
+        } else if (this.currentView === "pokedex") {
+            app.appendChild(this.renderPokedex());
+        } else if (this.currentView === "battle") {
+            app.appendChild(this.renderBattle());
+        } else if (this.currentView === "search") {
+            app.appendChild(this.renderSearch());
         } else if (this.currentView === "detail") {
             app.appendChild(this.renderDetail());
-        } else if (this.currentView === "create") {
-            app.appendChild(this.renderCreate());
-        } else if (this.currentView === "edit") {
-            app.appendChild(this.renderEdit());
         }
     }
 
     /**
-     * Render home view with Pokéball image and welcome message
-     * 
-     * Features:
-     * - Large Pokéball image
-     * - Welcome message
-     * - Call-to-action button to enter Pokédex
+     * 1. Public landing home page (not logged in)
+     */
+    renderLanding() {
+        const div = document.createElement("div");
+        div.innerHTML = `
+            <div class="container">
+                <section class="landing-hero">
+                    <div>
+                        <h1 class="display-4 hero-title" style="color: var(--pokeball-red);">
+                            Welcome to the Pokédex 
+                        </h1>
+                        <div class="mt-4">
+                            <button class="btn btn-primary btn-lg" id="landing-login-btn">
+                                🔐 Log in with Google
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="pokeball-stage" aria-hidden="true">
+                        <div class="pokeball-glow"></div>
+                        <div class="pokeball" id="landing-pokeball">
+                            <div class="top"></div>
+                            <div class="bottom"></div>
+                            <div class="band"></div>
+                            <div class="button-outer"></div>
+                            <div class="button-inner"></div>
+                        </div>
+                    </div>
+                </section>
+
+                <section class="landing-section" id="landing-about">
+                    <div class="row g-4 pb-5">
+                        <div class="col-md-6">
+                            <div class="card shadow-sm h-100">
+                                <div class="card-body">
+                                    <h3 class="h5">About this project</h3>
+                                    <p class="text-muted mb-0">
+                                        This Pokédex is a single-page web app using Flask and vanilla JavaScript.
+                                        It pulls real Pokémon data from the public PokéAPI and lets each user
+                                        manage their own Pokéball team for battle.
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="card shadow-sm h-100">
+                                <div class="card-body">
+                                    <h3 class="h5">About the developer</h3>
+                                    <p class="text-muted mb-0">
+                                        Built as part of an Object Oriented Design & Programming assignment,
+                                        focusing on clean architecture, API integration, and modern UI/UX.
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+            </div>
+        `;
+
+        // Login button
+        div.querySelector("#landing-login-btn").onclick = () => {
+            this.currentView = "login";
+            this.render();
+        };
+
+        // Pokéball animation (auto-spin + drag momentum)
+        const pokeball = div.querySelector("#landing-pokeball");
+        if (pokeball) {
+            let isDragging = false;
+            let lastX = 0;
+            let rotation = 0;
+            let velocity = 0;
+            let rafId;
+
+            const animate = () => {
+                if (!isDragging) {
+                    rotation += 0.3;
+                    velocity *= 0.95;
+                }
+                rotation += velocity;
+                pokeball.style.transform = `rotate(${rotation}deg)`;
+                rafId = requestAnimationFrame(animate);
+            };
+            rafId = requestAnimationFrame(animate);
+
+            const onPointerDown = (e) => {
+                isDragging = true;
+                lastX = e.clientX;
+                pokeball.style.cursor = "grabbing";
+            };
+            const onPointerUp = () => {
+                isDragging = false;
+                pokeball.style.cursor = "grab";
+            };
+            const onPointerMove = (e) => {
+                if (!isDragging) return;
+                const delta = e.clientX - lastX;
+                velocity = delta * 0.5;
+                lastX = e.clientX;
+            };
+
+            pokeball.addEventListener("pointerdown", onPointerDown);
+            pokeball.addEventListener("pointerup", onPointerUp);
+            pokeball.addEventListener("pointerleave", onPointerUp);
+            pokeball.addEventListener("pointermove", onPointerMove);
+
+            // Cleanup if view rerenders
+            const originalRender = this.render.bind(this);
+            this.render = () => {
+                cancelAnimationFrame(rafId);
+                pokeball.removeEventListener("pointerdown", onPointerDown);
+                pokeball.removeEventListener("pointerup", onPointerUp);
+                pokeball.removeEventListener("pointerleave", onPointerUp);
+                pokeball.removeEventListener("pointermove", onPointerMove);
+                this.render = originalRender;
+                originalRender();
+            };
+        }
+
+        return div;
+    }
+
+    /**
+     * 2. Login page with Google button
+     */
+    renderLogin() {
+        const div = document.createElement("div");
+        div.innerHTML = `
+            <div class="container mt-5">
+                <div class="row justify-content-center">
+                    <div class="col-md-6">
+                        <div class="card shadow" style="border-radius: 12px;">
+                            <div class="card-body text-center p-5">
+                                <img src="/static/images/pokeball.png" alt="Pokéball" 
+                                     style="width: 100px; height: 100px; margin-bottom: 20px;">
+                                <h1 class="display-5 fw-bold mb-4" style="color: var(--pokeball-red);">
+                                    Pokédex v2.0
+                                </h1>
+                                <p class="text-muted mb-4">
+                                    Sign in with Google to access your Pokédex and Battle Arena.
+                                </p>
+                                
+                                <a href="/auth/google" class="btn btn-primary btn-lg w-100">
+                                    🔐 Sign in with Google
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+        return div;
+    }
+
+    /**
+     * 3. Authenticated home page (after login)
      */
     renderHome() {
         const div = document.createElement("div");
         div.innerHTML = `
-            <div style="text-align: center; padding: 60px 20px;">
-                <!-- Pokéball Image -->
-                <div style="margin-bottom: 40px;">
-                    <img 
-                        src="/static/images/pokeball.png" 
-                        alt="Pokéball" 
-                        style="width: 200px; height: 200px; object-fit: contain; filter: drop-shadow(0 4px 8px rgba(0,0,0,0.2));"
-                    >
-                </div>
-
-                <!-- Welcome Text -->
-                <h1 class="display-3 fw-bold" style="color: var(--pokeball-red); margin-bottom: 20px;">
-                    Welcome to Your Pokédex
-                </h1>
-                <p class="lead text-muted" style="font-size: 1.3rem; margin-bottom: 40px;">
-                    Explore, discover, and manage your Pokémon collection
-                </p>
-
-                <!-- Call-to-Action Button -->
-                <button 
-                    class="btn btn-primary btn-lg" 
-                    style="padding: 15px 50px; font-size: 1.2rem;"
-                    onclick="app.showList()"
-                >
-                     Enter Pokédex
-                </button>
-
-                <!-- Optional: Secondary info -->
-                <div style="margin-top: 60px; padding: 30px; background-color: var(--pokeball-white); border-radius: 12px; border: 2px solid var(--pokeball-red);">
-                    <h3 style="color: var(--pokeball-black); margin-bottom: 15px;">Get Started</h3>
-                    <p style="color: var(--text-dark); font-size: 1rem;">
-                        Click the button above to browse all available Pokémon,<br/>
-                        search by name or type, and view detailed statistics.
-                    </p>
-                </div>
-            </div>
-        `;
-        return div;
-    }
-
-    /**
-     * Render list view with search/filter controls and Pokémon cards
-     * 
-     * Features:
-     * - Search input (searches by name or number)
-     * - Type filter dropdown (populated from API)
-     * - Grid of Pokémon cards (responsive: 3 cols on desktop, 2 on tablet, 1 on mobile)
-     * - Each card is clickable to show detail view
-     * - Empty state message if no Pokémon
-     */
-    renderList() {
-        const div = document.createElement("div");
-        
-        // Build type options HTML
-        const typeOptions = this.types
-            .map(t => `<option value="${t}">${t}</option>`)
-            .join("");
-        
-        div.innerHTML = `
-            <!-- Header -->
-            <div class="text-center mb-5">
-                <h1 class="display-4 fw-bold">Pokédex</h1>
-                <p class="text-muted">Browse all Pokémon in your collection</p>
-            </div>
-
-            <!-- Filter Panel -->
-            <div class="card mb-4 shadow-sm">
-                <div class="card-body">
-                    <div class="row g-3 align-items-end">
-                        <!-- Search Input -->
-                        <div class="col-md-6">
-                            <label for="search-input" class="form-label fw-bold">🔍 Search Pokémon</label>
-                            <input 
-                                class="form-control form-control-lg" 
-                                id="search-input" 
-                                type="search" 
-                                placeholder="Search by name (e.g., 'Char') or number (e.g., '0004')..."
-                                onkeypress="if(event.key==='Enter') app.applyFilters();"
-                            >
+            <div class="container mt-4">
+                <div class="row">
+                    <div class="col-md-8">
+                        <h2>Welcome back, ${this.user.name}!</h2>
+                        <p class="text-muted">
+                            Use the navigation above to open your Pokédex or jump into the Battle Arena.
+                        </p>
+                        <div class="alert alert-info mt-3">
+                            <strong>Phase 1 foundations are ready.</strong><br>
+                            Pokédex browsing and battling will be implemented in the next phases.
                         </div>
-
-                        <!-- Type Filter Dropdown -->
-                        <div class="col-md-3">
-                            <label for="type-filter" class="form-label fw-bold">🔥❄️ Filter by Type</label>
-                            <select class="form-select form-select-lg" id="type-filter">
-                                <option value="">All Types</option>
-                                ${typeOptions}
-                            </select>
-                        </div>
-
-                        <!-- Action Buttons -->
-                        <div class="col-md-3">
-                            <button 
-                                class="btn btn-primary btn-lg w-100" 
-                                onclick="app.applyFilters()"
-                            >
-                                🔍 Filter
-                            </button>
-                            <button 
-                                class="btn btn-success btn-lg w-100 mt-2" 
-                                onclick="app.showCreate()"
-                            >
-                                ➕ New Pokémon
-                            </button>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="card">
+                            <div class="card-body">
+                                <h5>Profile</h5>
+                                <img src="${this.user.picture}" alt="Profile" 
+                                     style="width: 60px; height: 60px; border-radius: 50%; margin-bottom: 10px;">
+                                <p><strong>${this.user.name}</strong></p>
+                                <p class="text-muted">${this.user.email}</p>
+                                <hr>
+                                <p class="text-muted small mb-0">
+                                    Use the Logout button in the top navigation bar to sign out.
+                                </p>
+                            </div>
                         </div>
                     </div>
                 </div>
             </div>
-
-            <!-- Pokémon Grid -->
-            <div class="row g-4" id="pokemon-grid">
-                ${this.pokemonList.length === 0 
-                    ? `<div class="col-12">
-                        <div class="alert alert-info text-center py-5">
-                            <h5>No Pokémon found</h5>
-                            <p class="text-muted mb-0">Try adjusting your search or filters</p>
-                        </div>
-                       </div>`
-                    : this.pokemonList.map(p => `
-                        <!-- Pokémon Card -->
-                        <div class="col-md-6 col-lg-4 col-xl-3">
-                            <div 
-                                class="card h-100 shadow-sm pokemon-card" 
-                                style="cursor: pointer; border-radius: 12px;" 
-                                onclick="app.showDetail('${p.number}')"
-                            >
-                                <!-- Card Header with Number -->
-                                <div class="card-header bg-gradient text-white" style="background-color: var(--pokeball-red); border: none;">
-                                    <h5 class="mb-0">#${p.number}</h5>
-                                </div>
-
-                                <!-- Card Body -->
-                                <div class="card-body text-center">
-                                    <h5 class="card-title fw-bold">${p.name}</h5>
-                                    <span class="badge bg-info mb-3">${p.type}</span>
-                                    
-                                    <!-- Quick Stats -->
-                                    <div class="mt-3">
-                                        <small class="text-muted d-block">
-                                            <strong>HP:</strong> ${p.hp}
-                                        </small>
-                                        <small class="text-muted d-block">
-                                            <strong>ATK:</strong> ${p.attack}
-                                        </small>
-                                        <small class="text-muted d-block">
-                                            <strong>DEF:</strong> ${p.defense}
-                                        </small>
-                                    </div>
-                                </div>
-
-                                <!-- Card Footer (Click hint) -->
-                                <div class="card-footer bg-light border-top text-center">
-                                    <small class="text-muted">Click to view details →</small>
-                                </div>
-                            </div>
-                        </div>
-                    `).join("")
-                }
-            </div>
         `;
-        
         return div;
     }
 
-    /**
-     * Render detail view for a single Pokémon
-     * 
-     * Features:
-     * - Back button to return to list
-     * - Pokémon name, number, type, species
-     * - Physical info (height, weight)
-     * - Abilities list
-     * - Stats table with progress bars
-     * - Total stats
-     * - Edit/Delete buttons (Phase 2)
-     * - Placeholder for charts (Phase 4)
-     */
-    renderDetail() {
-        const p = this.selectedPokemon;
-        if (!p) {
-            const div = document.createElement("div");
-            div.innerHTML = `<p>Loading...</p>`;
+    renderPokedex() {
+        const div = document.createElement("div");
+        if (!this.isAuthenticated) {
+            div.innerHTML = `
+                <div class="container mt-4">
+                    <div class="card">
+                        <div class="card-body text-center">
+                            <h3 class="mb-2">Pokédex</h3>
+                            <p class="text-muted mb-3">Please log in to use the Pokédex and My Pokéball.</p>
+                            <button class="btn btn-primary" id="pokedex-login-btn">🔐 Log in with Google</button>
+                        </div>
+                    </div>
+                </div>
+            `;
+            div.querySelector("#pokedex-login-btn").onclick = () => {
+                this.currentView = "login";
+                this.render();
+            };
             return div;
         }
 
-        const div = document.createElement("div");
-        
-        // Calculate stat percentages for progress bars (max 200)
-        const getStatPercent = (stat) => (stat / 200) * 100;
-
         div.innerHTML = `
-            <!-- Back Button -->
-            <div class="mb-4">
-                <button 
-                    class="btn btn-outline-secondary btn-lg" 
-                    onclick="app.showList()"
-                >
-                    ← Back to Pokédex
-                </button>
-            </div>
+            <div class="container-fluid mt-4">
+                <div class="row mb-3">
+                    <div class="col-12 d-flex flex-wrap justify-content-between align-items-center gap-2">
+                        <h2 class="mb-0">Pokédex</h2>
+                        <div class="d-flex align-items-center gap-2" style="max-width: 520px; width: 100%;">
+                            <input type="text" class="form-control" id="pokedex-search" placeholder="Search Pokémon by name (e.g. charmander) or ID (e.g. 4)" value="${this.searchQuery || ""}">
+                            <button class="btn btn-outline-secondary" id="pokedex-reset">Reset</button>
+                        </div>
+                    </div>
+                </div>
 
-            <!-- Two-Column Layout -->
-            <div class="row">
-                <!-- Left Column: Basic Info & Abilities -->
-                <div class="col-lg-4 mb-4">
-                    <!-- Pokémon Card -->
-                    <div class="card shadow-sm mb-4" style="border-radius: 12px; border: none;">
-                        <div class="card-body text-center">
-                            <h2 class="fw-bold mb-2">${p.name}</h2>
-                            <p class="text-muted mb-3">
-                                <span class="badge bg-dark">#${p.number}</span>
-                            </p>
-                            <span class="badge bg-info p-2 fs-6">${p.type}</span>
-                            
-                            <!-- Physical Info -->
-                            <div class="mt-4 p-3 bg-light rounded">
-                                <p class="mb-2">
-                                    <strong>Species:</strong><br/>
-                                    ${p.species}
-                                </p>
-                                <p class="mb-2">
-                                    <strong>Height:</strong><br/>
-                                    ${p.height_m} m
-                                </p>
-                                <p class="mb-0">
-                                    <strong>Weight:</strong><br/>
-                                    ${p.weight_kg} kg
-                                </p>
+                <div class="row g-3">
+                    <div class="col-lg-8">
+                        <div class="card h-100">
+                            <div class="card-header d-flex justify-content-between align-items-center">
+                                <div class="btn-group" role="group" aria-label="Pokedex tabs">
+                                    <button class="btn btn-sm ${this.pokedexTab === "pokedex" ? "btn-primary" : "btn-outline-secondary"}" id="tab-pokedex">Pokedex</button>
+                                    <button class="btn btn-sm ${this.pokedexTab === "pokeball" ? "btn-primary" : "btn-outline-secondary"}" id="tab-pokeball">My Pokéball (${this.myPokeball.length}/5)</button>
+                                </div>
+                                <div class="small text-muted">
+                                    ${this.pokedexTab === "pokedex" ? "Browse & add Pokémon" : "Reorder your 5 Pokémon for battle"}
+                                </div>
+                            </div>
+                            <div class="card-body">
+                                <div id="left-panel"></div>
                             </div>
                         </div>
                     </div>
 
-                    <!-- Abilities Card -->
-                    <div class="card shadow-sm" style="border-radius: 12px; border: none;">
-                        <div class="card-header bg-primary text-white" style="border-radius: 12px 12px 0 0;">
-                            <h5 class="mb-0">⚡ Abilities</h5>
-                        </div>
-                        <div class="card-body">
-                            ${p.abilities.length > 0
-                                ? p.abilities.map(a => `
-                                    <span class="badge bg-secondary p-2 d-block mb-2">
-                                        ${a}
-                                    </span>
-                                  `).join("")
-                                : '<p class="text-muted mb-0">No abilities recorded</p>'
-                            }
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Right Column: Stats -->
-                <div class="col-lg-8">
-                    <div class="card shadow-sm" style="border-radius: 12px; border: none;">
-                        <div class="card-header bg-danger text-white" style="border-radius: 12px 12px 0 0;">
-                            <h5 class="mb-0">📊 Base Stats</h5>
-                        </div>
-                        <div class="card-body">
-                            <div class="table-responsive">
-                                <table class="table table-hover mb-0">
-                                    <tbody>
-                                        <!-- HP Row -->
-                                        <tr>
-                                            <td class="fw-bold" style="width: 20%;">HP</td>
-                                            <td style="width: 60%;">
-                                                <div class="progress" style="height: 20px;">
-                                                    <div 
-                                                        class="progress-bar" 
-                                                        style="width: ${getStatPercent(p.stats.hp)}%; background-color: var(--pokeball-red);"
-                                                    ></div>
-                                                </div>
-                                            </td>
-                                            <td class="text-end fw-bold">${p.stats.hp}</td>
-                                        </tr>
-
-                                        <!-- Attack Row -->
-                                        <tr>
-                                            <td class="fw-bold">ATK</td>
-                                            <td>
-                                                <div class="progress" style="height: 20px;">
-                                                    <div 
-                                                        class="progress-bar" 
-                                                        style="width: ${getStatPercent(p.stats.attack)}%; background-color: var(--pokeball-red);"
-                                                    ></div>
-                                                </div>
-                                            </td>
-                                            <td class="text-end fw-bold">${p.stats.attack}</td>
-                                        </tr>
-
-                                        <!-- Defense Row -->
-                                        <tr>
-                                            <td class="fw-bold">DEF</td>
-                                            <td>
-                                                <div class="progress" style="height: 20px;">
-                                                    <div 
-                                                        class="progress-bar" 
-                                                        style="width: ${getStatPercent(p.stats.defense)}%; background-color: var(--pokeball-red);"
-                                                    ></div>
-                                                </div>
-                                            </td>
-                                            <td class="text-end fw-bold">${p.stats.defense}</td>
-                                        </tr>
-
-                                        <!-- Sp. Atk Row -->
-                                        <tr>
-                                            <td class="fw-bold">SP.A</td>
-                                            <td>
-                                                <div class="progress" style="height: 20px;">
-                                                    <div 
-                                                        class="progress-bar" 
-                                                        style="width: ${getStatPercent(p.stats.sp_atk)}%; background-color: var(--pokeball-red);"
-                                                    ></div>
-                                                </div>
-                                            </td>
-                                            <td class="text-end fw-bold">${p.stats.sp_atk}</td>
-                                        </tr>
-
-                                        <!-- Sp. Def Row -->
-                                        <tr>
-                                            <td class="fw-bold">SP.D</td>
-                                            <td>
-                                                <div class="progress" style="height: 20px;">
-                                                    <div 
-                                                        class="progress-bar" 
-                                                        style="width: ${getStatPercent(p.stats.sp_def)}%; background-color: var(--pokeball-red);"
-                                                    ></div>
-                                                </div>
-                                            </td>
-                                            <td class="text-end fw-bold">${p.stats.sp_def}</td>
-                                        </tr>
-
-                                        <!-- Speed Row -->
-                                        <tr>
-                                            <td class="fw-bold">SPE</td>
-                                            <td>
-                                                <div class="progress" style="height: 20px;">
-                                                    <div 
-                                                        class="progress-bar" 
-                                                        style="width: ${getStatPercent(p.stats.speed)}%; background-color: var(--pokeball-red);"
-                                                    ></div>
-                                                </div>
-                                            </td>
-                                            <td class="text-end fw-bold">${p.stats.speed}</td>
-                                        </tr>
-
-                                        <!-- Total Row (highlighted) -->
-                                        <tr class="table-dark" style="background-color: #2C3E50 !important;">
-                                            <td class="fw-bold text-white">TOTAL</td>
-                                            <td colspan="2" class="text-end">
-                                                <strong class="fs-5 text-white">${p.stats.total}</strong>
-                                            </td>
-                                        </tr>
-                                    </tbody>
-                                </table>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Action Buttons (Phase 2+) -->
-                    <div class="mt-4">
-                        <button 
-                            class="btn btn-warning btn-lg w-100" 
-                            onclick="alert('Edit coming in Phase 2')"
-                        >
-                            ✏️ Edit Stats
-                        </button>
-                        <button 
-                            class="btn btn-danger btn-lg w-100 mt-2" 
-                            onclick="alert('Delete coming in Phase 2')"
-                        >
-                            🗑️ Delete Pokémon
-                        </button>
+                    <div class="col-lg-4">
+                        <div id="detail-panel"></div>
                     </div>
                 </div>
             </div>
         `;
-        
+
+        const detailPanel = div.querySelector("#detail-panel");
+        detailPanel.appendChild(this.renderDetailPanel());
+
+        const leftPanel = div.querySelector("#left-panel");
+
+        const renderPokedexGrid = () => {
+            leftPanel.innerHTML = `
+                <div class="row row-cols-2 row-cols-md-3 row-cols-xl-4 g-3" id="pokedex-grid"></div>
+            `;
+            const grid = leftPanel.querySelector("#pokedex-grid");
+            if (!this.pokedexResults.length) {
+                grid.innerHTML = `
+                    <div class="col-12">
+                        <div class="text-muted">No Pokémon found.</div>
+                    </div>
+                `;
+                return;
+            }
+            for (const p of this.pokedexResults) {
+                grid.appendChild(this.renderPokemonCard(p, { showAddButton: true, context: "pokedex" }));
+            }
+        };
+
+        const renderPokeballList = () => {
+            leftPanel.innerHTML = `
+                <div class="row row-cols-2 row-cols-md-3 row-cols-xl-4 g-3" id="pokeball-grid"></div>
+                <div class="mt-3 small text-muted">
+                    Tip: use the arrows to set battle order (saved in this session).
+                </div>
+            `;
+            const grid = leftPanel.querySelector("#pokeball-grid");
+            if (!this.myPokeball.length) {
+                grid.innerHTML = `
+                    <div class="col-12">
+                        <div class="text-muted">Your Pokéball is empty. Add Pokémon from the Pokedex tab.</div>
+                    </div>
+                `;
+                return;
+            }
+
+            this.myPokeball.forEach((p, idx) => {
+                const card = this.renderPokemonCard(
+                    { id: p.pokemon_id, name: p.pokemon_name, number: p.pokemon_number, sprite: this.spriteCache[p.pokemon_id] || "" },
+                    { showAddButton: true, context: "pokeball" }
+                );
+                const body = card.querySelector(".card-body");
+                const controls = document.createElement("div");
+                controls.className = "mt-2 d-flex justify-content-center gap-2";
+                controls.innerHTML = `
+                    <button class="btn btn-outline-secondary btn-sm" ${idx === 0 ? "disabled" : ""} data-move="up">↑</button>
+                    <button class="btn btn-outline-secondary btn-sm" ${idx === this.myPokeball.length - 1 ? "disabled" : ""} data-move="down">↓</button>
+                `;
+
+                controls.querySelector('[data-move="up"]').onclick = (e) => {
+                    e.stopPropagation();
+                    if (idx <= 0) return;
+                    const tmp = this.myPokeball[idx - 1];
+                    this.myPokeball[idx - 1] = this.myPokeball[idx];
+                    this.myPokeball[idx] = tmp;
+                    this.render();
+                };
+                controls.querySelector('[data-move="down"]').onclick = (e) => {
+                    e.stopPropagation();
+                    if (idx >= this.myPokeball.length - 1) return;
+                    const tmp = this.myPokeball[idx + 1];
+                    this.myPokeball[idx + 1] = this.myPokeball[idx];
+                    this.myPokeball[idx] = tmp;
+                    this.render();
+                };
+
+                body.appendChild(controls);
+
+                // Ensure clicking shows real details (load by pokemon_id)
+                card.querySelector("[data-pokemon-id]").onclick = async (e) => {
+                    const btn = e.target.closest("button");
+                    if (btn) return;
+                    try {
+                        await this.loadPokemonDetail(p.pokemon_id);
+                        this.render();
+                    } catch (err) {
+                        this.showError(err.message || "Failed to load details");
+                    }
+                };
+
+                grid.appendChild(card);
+            });
+        };
+
+        // Tabs
+        div.querySelector("#tab-pokedex").onclick = async () => {
+            this.pokedexTab = "pokedex";
+            if (!this.pokedexResults.length) {
+                try {
+                    await this.loadDefaultPokedex();
+                } catch (err) {
+                    this.showError(err.message || "Failed to load Pokémon");
+                }
+            }
+            this.render();
+        };
+        div.querySelector("#tab-pokeball").onclick = async () => {
+            this.pokedexTab = "pokeball";
+            try {
+                await this.loadMyPokeball();
+            } catch (err) {
+                this.showError(err.message || "Failed to load My Pokéball");
+            }
+            this.render();
+        };
+
+        // Search interactions (Pokedex tab)
+        const searchInput = div.querySelector("#pokedex-search");
+        const resetBtn = div.querySelector("#pokedex-reset");
+
+        const doSearch = async () => {
+            const q = (searchInput.value || "").trim().toLowerCase();
+            this.searchQuery = q;
+            this.pokedexTab = "pokedex";
+            try {
+                if (!q) {
+                    await this.loadDefaultPokedex();
+                } else {
+                    await this.searchPokemonByNameOrId(q);
+                }
+                this.render();
+            } catch (err) {
+                this.showError(err.message || "Search failed");
+            }
+        };
+
+        searchInput.oninput = () => {
+            clearTimeout(this.searchTimer);
+            this.searchTimer = setTimeout(doSearch, 350);
+        };
+        searchInput.onkeydown = (e) => {
+            if (e.key === "Enter") {
+                clearTimeout(this.searchTimer);
+                doSearch();
+            }
+        };
+        resetBtn.onclick = async () => {
+            searchInput.value = "";
+            this.searchQuery = "";
+            try {
+                await this.loadDefaultPokedex();
+                this.render();
+            } catch (err) {
+                this.showError(err.message || "Failed to reset");
+            }
+        };
+
+        // Initial left panel content
+        if (this.pokedexTab === "pokeball") {
+            this.warmPokeballSprites().then(() => this.render()).catch(() => {});
+            renderPokeballList();
+        } else {
+            if (!this.pokedexResults.length) {
+                // Fire-and-forget; render once we have results
+                this.loadDefaultPokedex().then(() => this.render()).catch(() => {});
+                leftPanel.innerHTML = `<div class="text-muted">Loading Pokémon...</div>`;
+            } else {
+                renderPokedexGrid();
+            }
+        }
+
         return div;
     }
 
-    /**
-     * Render create form (Phase 2 placeholder)
-     * Shows a message that this is coming in Phase 2
-     */
-    renderCreate() {
+    renderBattle() {
         const div = document.createElement("div");
         div.innerHTML = `
-            <div class="mb-4">
-                <button 
-                    class="btn btn-outline-secondary btn-lg" 
-                    onclick="app.showList()"
-                >
-                    ← Back to Pokédex
-                </button>
-            </div>
-
-            <div class="card shadow-sm" style="border-radius: 12px; max-width: 600px; margin: 0 auto; border: none;">
-                <div class="card-header bg-success text-white" style="border-radius: 12px 12px 0 0;">
-                    <h5 class="mb-0">➕ Create New Pokémon</h5>
-                </div>
-                <div class="card-body">
-                    <div class="alert alert-info">
-                        <strong>Coming in Phase 2!</strong><br/>
-                        Create form implementation will be added in the next phase.
+            <div class="container mt-4">
+                <h2>Battle Arena</h2>
+                <p class="text-muted">
+                    This is a placeholder for the online battle mode between users.
+                    In later phases, you will be able to select a team from your Pokédex
+                    and battle another trainer in a turn-based arena.
+                </p>
+                <div class="card mt-3">
+                    <div class="card-body">
+                        <p class="mb-1"><strong>Planned layout:</strong></p>
+                        <ul class="mb-0 text-muted">
+                            <li>Top section: opponent info and connection status.</li>
+                            <li>Middle: battle field with both active Pokémon and HP bars.</li>
+                            <li>Bottom: move buttons, switch controls, and battle log.</li>
+                        </ul>
                     </div>
                 </div>
             </div>
@@ -616,34 +856,31 @@ class PokemonApp {
         return div;
     }
 
-    /**
-     * Render edit form (Phase 2 placeholder)
-     */
-    renderEdit() {
+    renderSearch() {
         const div = document.createElement("div");
-        div.innerHTML = `
-            <div class="alert alert-info">
-                <strong>Edit form coming in Phase 2</strong>
-            </div>
-            <button class="btn btn-secondary" onclick="app.showList()">Back</button>
-        `;
+        div.innerHTML = `<p>Search view - Phase 1.2</p>`;
         return div;
+    }
+
+    renderDetail() {
+        const div = document.createElement("div");
+        div.innerHTML = `<p>Detail view - Phase 1.2</p>`;
+        return div;
+    }
+
+    // ===== UTILITIES =====
+
+    showError(message) {
+        alert("❌ " + message);
     }
 }
 
-// ===== APP INITIALIZATION =====
+// ===== INITIALIZATION =====
 
-/**
- * Global app instance
- */
 let app;
 
-/**
- * Initialize app when DOM is fully loaded
- * This is the entry point for the entire application
- */
 document.addEventListener("DOMContentLoaded", () => {
-    console.log("🌐 DOM loaded, initializing PokemonApp...");
-    app = new PokemonApp();
+    console.log("🌐 DOM loaded, initializing PokemonApp v2.0...");
+    app = new PokemonAppV2();
     app.init();
 });
