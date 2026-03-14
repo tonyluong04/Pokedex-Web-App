@@ -128,7 +128,7 @@ class PokemonAppV2 {
             .map(p => Number(p.pokemon_id))
             .filter(id => id && !this.spriteCache[id]);
 
-        if (!missing.length) return;
+        if (!missing.length) return false;  // return false = nothing new
 
         await Promise.all(
             missing.map(async (id) => {
@@ -142,6 +142,8 @@ class PokemonAppV2 {
                 }
             })
         );
+
+        return true;  // return true = new sprites were loaded
     }
 
     async addToPokeball(pokemonId) {
@@ -238,7 +240,7 @@ class PokemonAppV2 {
 
         const card = col.querySelector("[data-pokemon-id]");
         card.onclick = async (e) => {
-            const btn = e.target.closest("button[data-action]");
+            const btn = e.target.closest("button");
             if (btn) return; // handled below
             try {
                 await this.loadPokemonDetail(id);
@@ -388,6 +390,9 @@ class PokemonAppV2 {
     // ===== VIEWS =====
 
     render() {
+        // Clear any pending search timer before re-rendering
+        clearTimeout(this.searchTimer);
+
         const app = document.getElementById("app");
         app.innerHTML = "";
         
@@ -403,6 +408,8 @@ class PokemonAppV2 {
             app.appendChild(this.renderPokedex());
         } else if (this.currentView === "battle") {
             app.appendChild(this.renderBattle());
+        } else if (this.currentView === "about") {
+            app.appendChild(this.renderAbout());
         } else if (this.currentView === "search") {
             app.appendChild(this.renderSearch());
         } else if (this.currentView === "detail") {
@@ -430,42 +437,7 @@ class PokemonAppV2 {
                     </div>
 
                     <div class="pokeball-stage" aria-hidden="true">
-                        <div class="pokeball-glow"></div>
-                        <div class="pokeball" id="landing-pokeball">
-                            <div class="top"></div>
-                            <div class="bottom"></div>
-                            <div class="band"></div>
-                            <div class="button-outer"></div>
-                            <div class="button-inner"></div>
-                        </div>
-                    </div>
-                </section>
-
-                <section class="landing-section" id="landing-about">
-                    <div class="row g-4 pb-5">
-                        <div class="col-md-6">
-                            <div class="card shadow-sm h-100">
-                                <div class="card-body">
-                                    <h3 class="h5">About this project</h3>
-                                    <p class="text-muted mb-0">
-                                        This Pokédex is a single-page web app using Flask and vanilla JavaScript.
-                                        It pulls real Pokémon data from the public PokéAPI and lets each user
-                                        manage their own Pokéball team for battle.
-                                    </p>
-                                </div>
-                            </div>
-                        </div>
-                        <div class="col-md-6">
-                            <div class="card shadow-sm h-100">
-                                <div class="card-body">
-                                    <h3 class="h5">About the developer</h3>
-                                    <p class="text-muted mb-0">
-                                        Built as part of an Object Oriented Design & Programming assignment,
-                                        focusing on clean architecture, API integration, and modern UI/UX.
-                                    </p>
-                                </div>
-                            </div>
-                        </div>
+                        <img src="/static/images/landing.gif" alt="Pokémon" class="landing-gif">
                     </div>
                 </section>
             </div>
@@ -476,60 +448,6 @@ class PokemonAppV2 {
             this.currentView = "login";
             this.render();
         };
-
-        // Pokéball animation (auto-spin + drag momentum)
-        const pokeball = div.querySelector("#landing-pokeball");
-        if (pokeball) {
-            let isDragging = false;
-            let lastX = 0;
-            let rotation = 0;
-            let velocity = 0;
-            let rafId;
-
-            const animate = () => {
-                if (!isDragging) {
-                    rotation += 0.3;
-                    velocity *= 0.95;
-                }
-                rotation += velocity;
-                pokeball.style.transform = `rotate(${rotation}deg)`;
-                rafId = requestAnimationFrame(animate);
-            };
-            rafId = requestAnimationFrame(animate);
-
-            const onPointerDown = (e) => {
-                isDragging = true;
-                lastX = e.clientX;
-                pokeball.style.cursor = "grabbing";
-            };
-            const onPointerUp = () => {
-                isDragging = false;
-                pokeball.style.cursor = "grab";
-            };
-            const onPointerMove = (e) => {
-                if (!isDragging) return;
-                const delta = e.clientX - lastX;
-                velocity = delta * 0.5;
-                lastX = e.clientX;
-            };
-
-            pokeball.addEventListener("pointerdown", onPointerDown);
-            pokeball.addEventListener("pointerup", onPointerUp);
-            pokeball.addEventListener("pointerleave", onPointerUp);
-            pokeball.addEventListener("pointermove", onPointerMove);
-
-            // Cleanup if view rerenders
-            const originalRender = this.render.bind(this);
-            this.render = () => {
-                cancelAnimationFrame(rafId);
-                pokeball.removeEventListener("pointerdown", onPointerDown);
-                pokeball.removeEventListener("pointerup", onPointerUp);
-                pokeball.removeEventListener("pointerleave", onPointerUp);
-                pokeball.removeEventListener("pointermove", onPointerMove);
-                this.render = originalRender;
-                originalRender();
-            };
-        }
 
         return div;
     }
@@ -572,36 +490,107 @@ class PokemonAppV2 {
     renderHome() {
         const div = document.createElement("div");
         div.innerHTML = `
-            <div class="container mt-4">
-                <div class="row">
-                    <div class="col-md-8">
-                        <h2>Welcome back, ${this.user.name}!</h2>
-                        <p class="text-muted">
-                            Use the navigation above to open your Pokédex or jump into the Battle Arena.
-                        </p>
-                        <div class="alert alert-info mt-3">
-                            <strong>Phase 1 foundations are ready.</strong><br>
-                            Pokédex browsing and battling will be implemented in the next phases.
+            <div class="container">
+                <div class="home-hero">
+                    <h1>Welcome back,<br>${this.user.name}!</h1>
+                    <p>
+                        Explore the Pokédex, battle a randomly generated opponent, or learn more about this project.
+                        Choose a path below to get started.
+                    </p>
+                </div>
+
+                <div class="feature-cards-row">
+                    <!-- Pokédex Card -->
+                    <div class="feature-card card-pokedex" id="home-card-pokedex">
+                        <img src="/static/images/pokeball.png" alt="Pokédex" class="feature-card-img">
+                        <div class="feature-card-body">
+                            <h3>Pokédex</h3>
+                            <p>Browse, search, and collect Pokémon. Build your Pokéball team of 5 for battle.</p>
                         </div>
                     </div>
-                    <div class="col-md-4">
-                        <div class="card">
-                            <div class="card-body">
-                                <h5>Profile</h5>
-                                <img src="${this.user.picture}" alt="Profile" 
-                                     style="width: 60px; height: 60px; border-radius: 50%; margin-bottom: 10px;">
-                                <p><strong>${this.user.name}</strong></p>
-                                <p class="text-muted">${this.user.email}</p>
-                                <hr>
-                                <p class="text-muted small mb-0">
-                                    Use the Logout button in the top navigation bar to sign out.
-                                </p>
-                            </div>
+
+                    <!-- Battle Mode Card -->
+                    <div class="feature-card card-battle" id="home-card-battle">
+                        <img src="/static/images/battle.jpg" alt="Battle Mode" class="feature-card-img">
+                        <div class="feature-card-body">
+                            <h3>Battle Mode</h3>
+                            <p>Challenge a randomly generated opponent in turn-based battles using your Pokéball team.</p>
+                        </div>
+                    </div>
+
+                    <!-- About Info Card -->
+                    <div class="feature-card card-about" id="home-card-about">
+                        <div class="feature-card-placeholder">ℹ️</div>
+                        <div class="feature-card-body">
+                            <h3>About Info</h3>
+                            <p>Learn about this project, the tech stack, and the developer behind it.</p>
                         </div>
                     </div>
                 </div>
             </div>
         `;
+
+        // Card click handlers
+        div.querySelector("#home-card-pokedex").onclick = () => {
+            this.currentView = "pokedex";
+            this.render();
+        };
+
+        div.querySelector("#home-card-battle").onclick = () => {
+            this.currentView = "battle";
+            this.render();
+        };
+
+        div.querySelector("#home-card-about").onclick = () => {
+            this.currentView = "about";
+            this.render();
+        };
+
+        return div;
+    }
+
+    renderAbout() {
+        const div = document.createElement("div");
+        div.innerHTML = `
+            <div class="container mt-4">
+                <h2 class="mb-4">About</h2>
+                <div class="row g-4">
+                    <div class="col-md-6">
+                        <div class="card shadow-sm h-100">
+                            <div class="card-body">
+                                <h3 class="h5">About this project</h3>
+                                <p class="text-muted mb-0">
+                                    This Pokédex is a single-page web app using Flask and vanilla JavaScript.
+                                    It pulls real Pokémon data from the public PokéAPI and lets each user
+                                    manage their own Pokéball team for battle.
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="card shadow-sm h-100">
+                            <div class="card-body">
+                                <h3 class="h5">About the developer</h3>
+                                <p class="text-muted mb-0">
+                                    I'm a second year Computer Science student at the University of Wollongong, 
+                                    currently pursuing AI & Big Data and Software Engineering.
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="mt-4">
+                    <button class="btn btn-outline-secondary" id="about-back-btn">← Back to Home</button>
+                </div>
+            </div>
+        `;
+
+        div.querySelector("#about-back-btn").onclick = () => {
+            this.currentView = "home";
+            this.render();
+        };
+
         return div;
     }
 
@@ -816,11 +805,13 @@ class PokemonAppV2 {
 
         // Initial left panel content
         if (this.pokedexTab === "pokeball") {
-            this.warmPokeballSprites().then(() => this.render()).catch(() => {});
             renderPokeballList();
+            this.warmPokeballSprites().then((hadNew) => {
+                if (hadNew) this.render();
+            }).catch(() => {});
         } else {
-            if (!this.pokedexResults.length) {
-                // Fire-and-forget; render once we have results
+            if (!this.pokedexResults.length && !this.searchQuery) {
+                // Only load defaults if there's no active search
                 this.loadDefaultPokedex().then(() => this.render()).catch(() => {});
                 leftPanel.innerHTML = `<div class="text-muted">Loading Pokémon...</div>`;
             } else {
