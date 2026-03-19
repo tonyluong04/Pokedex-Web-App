@@ -8,49 +8,61 @@
  */
 
 class PokemonAppV2 {
+
+    // ===== BATTLE TYPE CHART =====
+    static TYPE_CHART = {
+        fire: "grass",
+        water: "fire",
+        grass: "water",
+        electric: "water",
+        ice: "grass",
+        psychic: "fighting",
+        fighting: "normal",
+        ground: "electric",
+        flying: "fighting",
+        rock: "flying",
+        bug: "grass",
+        ghost: "psychic",
+        dragon: "dragon",
+        dark: "psychic",
+        steel: "ice",
+    };
+
     constructor() {
         // User state
         this.user = null;
         this.isAuthenticated = false;
         
         // Pokémon state
-        this.pokedexResults = [];   // results shown in Pokedex tab (default list or search)
-        this.myPokeball = [];       // user's saved Pokémon (max 5)
-        this.selectedPokemon = null; // full detail payload from /api/pokemon/<idOrName>
-        this.spriteCache = {};       // pokemon_id -> sprite url
+        this.pokedexResults = [];
+        this.myPokeball = [];
+        this.selectedPokemon = null;
+        this.spriteCache = {};
 
         // Pokedex UI state
-        this.pokedexTab = "pokedex"; // "pokedex" | "pokeball"
+        this.pokedexTab = "pokedex";
         this.searchQuery = "";
         this.searchTimer = null;
         
         // UI state
         this.currentView = "landing";
         this.loading = false;
+
+        // Battle state
+        this.battleState = null;
         
         console.log("✅ PokemonApp v2.0 initialized");
     }
 
-    /**
-     * Initialize app on page load
-     */
     async init() {
         try {
             console.log("🔄 Starting app initialization...");
-            
-            // Check authentication status
             await this.checkAuthStatus();
-
             if (this.isAuthenticated) {
                 await this.loadMyPokeball();
             }
-            
-            // Render initial view:
-            // - If not logged in: landing page with welcome and buttons
-            // - If logged in: authenticated home page
             this.currentView = this.isAuthenticated ? "home" : "landing";
             this.render();
-            
             console.log("✅ App initialization complete");
         } catch (err) {
             console.error("❌ Init failed:", err);
@@ -58,9 +70,6 @@ class PokemonAppV2 {
         }
     }
 
-    /**
-     * Check if user is authenticated via /api/auth/status
-     */
     async checkAuthStatus() {
         try {
             const resp = await fetch('/auth/status');
@@ -82,9 +91,6 @@ class PokemonAppV2 {
         }
     }
 
-    /**
-     * Logout user
-     */
     logout() {
         window.location.href = '/auth/logout';
     }
@@ -123,12 +129,11 @@ class PokemonAppV2 {
     }
 
     async warmPokeballSprites() {
-        // Max 5 items; safe to fetch details to show sprites.
         const missing = this.myPokeball
             .map(p => Number(p.pokemon_id))
             .filter(id => id && !this.spriteCache[id]);
 
-        if (!missing.length) return false;  // return false = nothing new
+        if (!missing.length) return false;
 
         await Promise.all(
             missing.map(async (id) => {
@@ -143,7 +148,7 @@ class PokemonAppV2 {
             })
         );
 
-        return true;  // return true = new sprites were loaded
+        return true;
     }
 
     async addToPokeball(pokemonId) {
@@ -205,6 +210,50 @@ class PokemonAppV2 {
         return map[t] || "bg-secondary";
     }
 
+    // ===== BATTLE HELPERS =====
+
+    calcTypeMultiplier(attackerTypes, defenderTypes) {
+        let multiplier = 1.0;
+        for (const aType of attackerTypes) {
+            for (const dType of defenderTypes) {
+                const strongAgainst = PokemonAppV2.TYPE_CHART[aType];
+                if (strongAgainst === dType) {
+                    multiplier *= 2.0;
+                }
+                const defStrong = PokemonAppV2.TYPE_CHART[dType];
+                if (defStrong === aType) {
+                    multiplier *= 0.5;
+                }
+            }
+        }
+        return multiplier;
+    }
+
+    calcDamage(attacker, defender) {
+        const typeMult = this.calcTypeMultiplier(attacker.types || [], defender.types || []);
+        const raw = Math.floor((attacker.attack / defender.defense) * 20 * typeMult);
+        return Math.max(1, raw);
+    }
+
+    hpBarClass(current, max) {
+        const pct = (current / max) * 100;
+        if (pct > 50) return "hp-green";
+        if (pct > 25) return "hp-yellow";
+        return "hp-red";
+    }
+
+    resetBattleState() {
+        this.battleState = {
+            playerTeam: [],
+            opponentTeam: [],
+            roundIndex: 0,
+            playerKOs: 0,
+            opponentKOs: 0,
+            turnLog: [],
+            phase: "select",
+        };
+    }
+
     renderPokemonCard(p, { showAddButton = true, context = "pokedex" } = {}) {
         const id = p.id ?? p.pokemon_id;
         const name = p.name ?? p.pokemon_name ?? "";
@@ -241,7 +290,7 @@ class PokemonAppV2 {
         const card = col.querySelector("[data-pokemon-id]");
         card.onclick = async (e) => {
             const btn = e.target.closest("button");
-            if (btn) return; // handled below
+            if (btn) return;
             try {
                 await this.loadPokemonDetail(id);
                 this.render();
@@ -256,10 +305,6 @@ class PokemonAppV2 {
                 e.stopPropagation();
                 try {
                     await this.addToPokeball(id);
-                    // keep detail panel in sync
-                    if (this.selectedPokemon && Number(this.selectedPokemon.id) === Number(id)) {
-                        // no-op; state already updated via loadMyPokeball
-                    }
                     this.render();
                 } catch (err) {
                     this.showError(err.message || "Add failed");
@@ -390,7 +435,6 @@ class PokemonAppV2 {
     // ===== VIEWS =====
 
     render() {
-        // Clear any pending search timer before re-rendering
         clearTimeout(this.searchTimer);
 
         const app = document.getElementById("app");
@@ -417,9 +461,6 @@ class PokemonAppV2 {
         }
     }
 
-    /**
-     * 1. Public landing home page (not logged in)
-     */
     renderLanding() {
         const div = document.createElement("div");
         div.innerHTML = `
@@ -443,7 +484,6 @@ class PokemonAppV2 {
             </div>
         `;
 
-        // Login button
         div.querySelector("#landing-login-btn").onclick = () => {
             this.currentView = "login";
             this.render();
@@ -452,9 +492,6 @@ class PokemonAppV2 {
         return div;
     }
 
-    /**
-     * 2. Login page with Google button
-     */
     renderLogin() {
         const div = document.createElement("div");
         div.innerHTML = `
@@ -471,7 +508,6 @@ class PokemonAppV2 {
                                 <p class="text-muted mb-4">
                                     Sign in with Google to access your Pokédex and Battle Arena.
                                 </p>
-                                
                                 <a href="/auth/google" class="btn btn-primary btn-lg w-100">
                                     🔐 Sign in with Google
                                 </a>
@@ -484,9 +520,6 @@ class PokemonAppV2 {
         return div;
     }
 
-    /**
-     * 3. Authenticated home page (after login)
-     */
     renderHome() {
         const div = document.createElement("div");
         div.innerHTML = `
@@ -500,7 +533,6 @@ class PokemonAppV2 {
                 </div>
 
                 <div class="feature-cards-row">
-                    <!-- Pokédex Card -->
                     <div class="feature-card card-pokedex" id="home-card-pokedex">
                         <img src="/static/images/pokeball.png" alt="Pokédex" class="feature-card-img">
                         <div class="feature-card-body">
@@ -509,7 +541,6 @@ class PokemonAppV2 {
                         </div>
                     </div>
 
-                    <!-- Battle Mode Card -->
                     <div class="feature-card card-battle" id="home-card-battle">
                         <img src="/static/images/battle.jpg" alt="Battle Mode" class="feature-card-img">
                         <div class="feature-card-body">
@@ -518,7 +549,6 @@ class PokemonAppV2 {
                         </div>
                     </div>
 
-                    <!-- About Info Card -->
                     <div class="feature-card card-about" id="home-card-about">
                         <div class="feature-card-placeholder">ℹ️</div>
                         <div class="feature-card-body">
@@ -530,7 +560,6 @@ class PokemonAppV2 {
             </div>
         `;
 
-        // Card click handlers
         div.querySelector("#home-card-pokedex").onclick = () => {
             this.currentView = "pokedex";
             this.render();
@@ -724,7 +753,6 @@ class PokemonAppV2 {
 
                 body.appendChild(controls);
 
-                // Ensure clicking shows real details (load by pokemon_id)
                 card.querySelector("[data-pokemon-id]").onclick = async (e) => {
                     const btn = e.target.closest("button");
                     if (btn) return;
@@ -740,7 +768,6 @@ class PokemonAppV2 {
             });
         };
 
-        // Tabs
         div.querySelector("#tab-pokedex").onclick = async () => {
             this.pokedexTab = "pokedex";
             if (!this.pokedexResults.length) {
@@ -762,11 +789,13 @@ class PokemonAppV2 {
             this.render();
         };
 
-        // Search interactions (Pokedex tab)
         const searchInput = div.querySelector("#pokedex-search");
         const resetBtn = div.querySelector("#pokedex-reset");
 
         const doSearch = async () => {
+            // Guard: make sure this input is still in the DOM
+            if (!document.contains(searchInput)) return;
+            
             const q = (searchInput.value || "").trim().toLowerCase();
             this.searchQuery = q;
             this.pokedexTab = "pokedex";
@@ -776,6 +805,8 @@ class PokemonAppV2 {
                 } else {
                     await this.searchPokemonByNameOrId(q);
                 }
+                // Guard again: don't re-render if input was detached during the async call
+                if (!document.contains(searchInput)) return;
                 this.render();
             } catch (err) {
                 this.showError(err.message || "Search failed");
@@ -803,7 +834,6 @@ class PokemonAppV2 {
             }
         };
 
-        // Initial left panel content
         if (this.pokedexTab === "pokeball") {
             renderPokeballList();
             this.warmPokeballSprites().then((hadNew) => {
@@ -811,7 +841,6 @@ class PokemonAppV2 {
             }).catch(() => {});
         } else {
             if (!this.pokedexResults.length && !this.searchQuery) {
-                // Only load defaults if there's no active search
                 this.loadDefaultPokedex().then(() => this.render()).catch(() => {});
                 leftPanel.innerHTML = `<div class="text-muted">Loading Pokémon...</div>`;
             } else {
@@ -822,29 +851,429 @@ class PokemonAppV2 {
         return div;
     }
 
+    // ===== BATTLE VIEWS =====
+
     renderBattle() {
         const div = document.createElement("div");
+
+        if (!this.isAuthenticated) {
+            div.innerHTML = `
+                <div class="container mt-4">
+                    <div class="card">
+                        <div class="card-body text-center">
+                            <h3 class="mb-2">Battle Arena</h3>
+                            <p class="text-muted mb-3">Please log in to battle.</p>
+                            <button class="btn btn-primary" id="battle-login-btn">🔐 Log in with Google</button>
+                        </div>
+                    </div>
+                </div>
+            `;
+            div.querySelector("#battle-login-btn").onclick = () => {
+                this.currentView = "login";
+                this.render();
+            };
+            return div;
+        }
+
+        if (!this.battleState) {
+            this.resetBattleState();
+        }
+
+        const phase = this.battleState.phase;
+
+        if (phase === "select") {
+            return this.renderBattleSelect(div);
+        } else if (phase === "loading") {
+            div.innerHTML = `
+                <div class="container mt-4 text-center">
+                    <h2>⚔️ Preparing Battle...</h2>
+                    <div class="spinner-border text-danger mt-3" role="status"></div>
+                    <p class="text-muted mt-2">Fetching Pokémon stats from PokéAPI...</p>
+                </div>
+            `;
+            return div;
+        } else {
+            return this.renderBattleArena(div);
+        }
+    }
+
+    renderBattleSelect(div) {
+        const hasFive = this.myPokeball.length === 5;
+
         div.innerHTML = `
             <div class="container mt-4">
-                <h2>Battle Arena</h2>
+                <h2 class="mb-3">⚔️ Battle Arena — Team Selection</h2>
                 <p class="text-muted">
-                    This is a placeholder for the online battle mode between users.
-                    In later phases, you will be able to select a team from your Pokédex
-                    and battle another trainer in a turn-based arena.
+                    ${hasFive
+                        ? "Your Pokéball team of 5 is ready! Hit Start Battle to begin."
+                        : `You need exactly 5 Pokémon in your Pokéball to battle. You currently have <strong>${this.myPokeball.length}/5</strong>.`
+                    }
                 </p>
-                <div class="card mt-3">
-                    <div class="card-body">
-                        <p class="mb-1"><strong>Planned layout:</strong></p>
-                        <ul class="mb-0 text-muted">
-                            <li>Top section: opponent info and connection status.</li>
-                            <li>Middle: battle field with both active Pokémon and HP bars.</li>
-                            <li>Bottom: move buttons, switch controls, and battle log.</li>
-                        </ul>
+
+                <div class="team-select-grid mb-4" id="team-preview"></div>
+
+                <div class="d-flex gap-2">
+                    <button class="btn btn-primary btn-lg" id="start-battle-btn" ${hasFive ? "" : "disabled"}>
+                        ⚔️ Start Battle
+                    </button>
+                    <button class="btn btn-outline-secondary" id="goto-pokeball-btn">
+                        📦 Go to Pokéball
+                    </button>
+                </div>
+            </div>
+        `;
+
+        const grid = div.querySelector("#team-preview");
+        if (this.myPokeball.length) {
+            this.myPokeball.forEach(p => {
+                const sprite = this.spriteCache[p.pokemon_id] || "";
+                const card = document.createElement("div");
+                card.className = "team-select-card selected";
+                card.innerHTML = `
+                    ${sprite ? `<img src="${sprite}" alt="${p.pokemon_name}">` : `<div style="width:64px;height:64px;"></div>`}
+                    <div class="name">${p.pokemon_name}</div>
+                `;
+                grid.appendChild(card);
+            });
+        }
+
+        this.warmPokeballSprites().then(hadNew => {
+            if (hadNew) this.render();
+        }).catch(() => {});
+
+        div.querySelector("#start-battle-btn").onclick = async () => {
+            this.battleState.phase = "loading";
+            this.render();
+
+            try {
+                const teamIds = this.myPokeball.map(p => Number(p.pokemon_id));
+                const resp = await fetch("/api/battle/start", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ team: teamIds }),
+                });
+                if (!resp.ok) {
+                    const err = await resp.json().catch(() => ({}));
+                    throw new Error(err.error || "Failed to start battle");
+                }
+                const data = await resp.json();
+
+                this.battleState.playerTeam = data.playerTeam.map(p => ({ ...p, currentHp: p.hp }));
+                this.battleState.opponentTeam = data.opponentTeam.map(p => ({ ...p, currentHp: p.hp }));
+                this.battleState.roundIndex = 0;
+                this.battleState.playerKOs = 0;
+                this.battleState.opponentKOs = 0;
+                this.battleState.turnLog = [];
+                this.battleState.phase = "round-intro";
+                this.render();
+            } catch (err) {
+                this.battleState.phase = "select";
+                this.render();
+                this.showError(err.message || "Battle start failed");
+            }
+        };
+
+        div.querySelector("#goto-pokeball-btn").onclick = () => {
+            this.pokedexTab = "pokeball";
+            this.currentView = "pokedex";
+            this.render();
+        };
+
+        return div;
+    }
+
+    renderBattleArena(div) {
+        const bs = this.battleState;
+        const ri = bs.roundIndex;
+        const player = bs.playerTeam[ri];
+        const opponent = bs.opponentTeam[ri];
+        const phase = bs.phase;
+
+        const playerHpPct = player ? Math.max(0, Math.round((player.currentHp / player.hp) * 100)) : 0;
+        const oppHpPct = opponent ? Math.max(0, Math.round((opponent.currentHp / opponent.hp) * 100)) : 0;
+
+        // Player score = opponent's KOs (rounds player won), and vice versa
+        const playerScore = bs.opponentKOs;
+        const opponentScore = bs.playerKOs;
+
+        const logEntries = bs.turnLog.slice(-10).map(entry => {
+            let cls = "";
+            if (entry.includes("fainted")) cls = "log-faint";
+            else if (entry.includes("Round")) cls = "log-round";
+            else cls = "log-damage";
+            return `<p class="${cls}">${entry}</p>`;
+        }).join("");
+
+        div.innerHTML = `
+            <div class="container-fluid mt-3">
+                <div class="battle-arena" id="battle-arena">
+                    <div class="battle-arena-overlay"></div>
+
+                    <div class="battle-score">
+                        Score: ${playerScore} - ${opponentScore}
+                    </div>
+
+                    ${player ? `
+                    <div class="battle-pokemon-card player">
+                        ${player.sprite ? `<img src="${player.sprite}" alt="${player.name}" class="battle-sprite">` : ""}
+                        <div class="pokemon-name">${player.name}</div>
+                        <div>${(player.types || []).map(t => `<span class="badge ${this.typeBadge(t)} me-1">${t}</span>`).join("")}</div>
+                        <div class="battle-hp-bar">
+                            <div class="progress-bar ${this.hpBarClass(player.currentHp, player.hp)}" id="player-hp-bar" style="width: ${playerHpPct}%"></div>
+                        </div>
+                        <div class="battle-hp-text">HP: ${player.currentHp} / ${player.hp}</div>
+                    </div>
+                    ` : ""}
+
+                    ${opponent ? `
+                    <div class="battle-pokemon-card opponent">
+                        ${opponent.sprite ? `<img src="${opponent.sprite}" alt="${opponent.name}" class="battle-sprite mirrored">` : ""}
+                        <div class="pokemon-name">${opponent.name}</div>
+                        <div>${(opponent.types || []).map(t => `<span class="badge ${this.typeBadge(t)} me-1">${t}</span>`).join("")}</div>
+                        <div class="battle-hp-bar">
+                            <div class="progress-bar ${this.hpBarClass(opponent.currentHp, opponent.hp)}" id="opp-hp-bar" style="width: ${oppHpPct}%"></div>
+                        </div>
+                        <div class="battle-hp-text">HP: ${opponent.currentHp} / ${opponent.hp}</div>
+                    </div>
+                    ` : ""}
+                </div>
+
+                <div class="mt-3">
+                    <div class="battle-log" id="battle-log">${logEntries || `<p class="text-muted">Battle log will appear here...</p>`}</div>
+                </div>
+
+                <div class="mt-3 d-flex gap-2" id="battle-controls"></div>
+            </div>
+
+            <!-- Round Intro Modal -->
+            <div class="modal fade round-intro-modal" id="roundIntroModal" tabindex="-1" data-bs-backdrop="static" data-bs-keyboard="false">
+                <div class="modal-dialog modal-dialog-centered">
+                    <div class="modal-content p-4">
+                        <h2 class="mb-2" id="round-intro-title"></h2>
+                        <div class="round-intro-fighters" id="round-intro-fighters"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Round End Modal -->
+            <div class="modal fade battle-result-modal" id="roundEndModal" tabindex="-1" data-bs-backdrop="static" data-bs-keyboard="false">
+                <div class="modal-dialog modal-dialog-centered">
+                    <div class="modal-content p-4">
+                        <h2 id="round-end-title"></h2>
+                        <p id="round-end-message"></p>
+                        <p id="round-end-score"></p>
+                        <div id="round-end-buttons"></div>
                     </div>
                 </div>
             </div>
         `;
+
+        setTimeout(() => {
+            if (phase === "round-intro") {
+                this.showRoundIntro(div);
+            } else if (phase === "fighting") {
+                this.addFightButton(div);
+            } else if (phase === "round-end") {
+                this.showRoundEnd(div);
+            } else if (phase === "match-end") {
+                this.showMatchEnd(div);
+            }
+        }, 50);
+
         return div;
+    }
+
+    showRoundIntro(div) {
+        const bs = this.battleState;
+        const ri = bs.roundIndex;
+        const player = bs.playerTeam[ri];
+        const opponent = bs.opponentTeam[ri];
+
+        player.currentHp = player.hp;
+        opponent.currentHp = opponent.hp;
+
+        bs.turnLog.push(`--- Round ${ri + 1} begins! ---`);
+
+        const titleEl = div.querySelector("#round-intro-title");
+        const fightersEl = div.querySelector("#round-intro-fighters");
+
+        if (titleEl) {
+            titleEl.textContent = `Round ${ri + 1}`;
+        }
+        if (fightersEl) {
+            fightersEl.innerHTML = `
+                <div class="text-center">
+                    ${player.sprite ? `<img src="${player.sprite}" alt="${player.name}">` : ""}
+                    <div class="fighter-name">${player.name}</div>
+                </div>
+                <div class="vs">VS</div>
+                <div class="text-center">
+                    ${opponent.sprite ? `<img src="${opponent.sprite}" alt="${opponent.name}">` : ""}
+                    <div class="fighter-name">${opponent.name}</div>
+                </div>
+            `;
+        }
+
+        const modalEl = div.querySelector("#roundIntroModal");
+        if (modalEl) {
+            const modal = new bootstrap.Modal(modalEl);
+            modal.show();
+
+            setTimeout(() => {
+                modal.hide();
+                bs.phase = "fighting";
+                this.render();
+            }, 2000);
+        }
+    }
+
+    addFightButton(div) {
+        const controls = div.querySelector("#battle-controls");
+        if (!controls) return;
+
+        controls.innerHTML = `
+            <button class="btn btn-danger btn-lg" id="attack-btn">⚔️ Attack</button>
+        `;
+
+        div.querySelector("#attack-btn").onclick = () => {
+            this.executeTurn(div);
+        };
+    }
+
+    executeTurn(div) {
+        const bs = this.battleState;
+        const ri = bs.roundIndex;
+        const player = bs.playerTeam[ri];
+        const opponent = bs.opponentTeam[ri];
+
+        let first, second, firstLabel, secondLabel;
+        if (player.speed > opponent.speed) {
+            first = player; second = opponent;
+            firstLabel = "player"; secondLabel = "opponent";
+        } else if (opponent.speed > player.speed) {
+            first = opponent; second = player;
+            firstLabel = "opponent"; secondLabel = "player";
+        } else {
+            if (Math.random() < 0.5) {
+                first = player; second = opponent;
+                firstLabel = "player"; secondLabel = "opponent";
+            } else {
+                first = opponent; second = player;
+                firstLabel = "opponent"; secondLabel = "player";
+            }
+        }
+
+        const dmg1 = this.calcDamage(first, second);
+        second.currentHp = Math.max(0, second.currentHp - dmg1);
+        bs.turnLog.push(`${first.name} dealt ${dmg1} damage to ${second.name}!`);
+
+        if (second.currentHp <= 0) {
+            bs.turnLog.push(`${second.name} fainted!`);
+            this.handleKO(secondLabel);
+            return;
+        }
+
+        const dmg2 = this.calcDamage(second, first);
+        first.currentHp = Math.max(0, first.currentHp - dmg2);
+        bs.turnLog.push(`${second.name} dealt ${dmg2} damage to ${first.name}!`);
+
+        if (first.currentHp <= 0) {
+            bs.turnLog.push(`${first.name} fainted!`);
+            this.handleKO(firstLabel);
+            return;
+        }
+
+        this.render();
+    }
+
+    handleKO(loserSide) {
+        const bs = this.battleState;
+        if (loserSide === "player") {
+            bs.playerKOs++;
+        } else {
+            bs.opponentKOs++;
+        }
+
+        if (bs.playerKOs >= 3 || bs.opponentKOs >= 3) {
+            bs.phase = "match-end";
+        } else {
+            bs.phase = "round-end";
+        }
+        this.render();
+    }
+
+    showRoundEnd(div) {
+        const bs = this.battleState;
+        const ri = bs.roundIndex;
+        const player = bs.playerTeam[ri];
+        const opponent = bs.opponentTeam[ri];
+
+        const playerFainted = player.currentHp <= 0;
+        const winnerName = playerFainted ? opponent.name : player.name;
+
+        const titleEl = div.querySelector("#round-end-title");
+        const msgEl = div.querySelector("#round-end-message");
+        const scoreEl = div.querySelector("#round-end-score");
+        const btnsEl = div.querySelector("#round-end-buttons");
+
+        if (titleEl) titleEl.textContent = `Round ${ri + 1} Complete!`;
+        if (msgEl) msgEl.innerHTML = `<span class="text-capitalize">${winnerName}</span> wins this round!`;
+        if (scoreEl) scoreEl.textContent = `Score: ${bs.opponentKOs} - ${bs.playerKOs}`;
+        if (btnsEl) {
+            btnsEl.innerHTML = `<button class="btn btn-primary" id="next-round-btn">Next Round →</button>`;
+            btnsEl.querySelector("#next-round-btn").onclick = () => {
+                const modal = bootstrap.Modal.getInstance(div.querySelector("#roundEndModal"));
+                if (modal) modal.hide();
+                bs.roundIndex++;
+                bs.phase = "round-intro";
+                this.render();
+            };
+        }
+
+        const modalEl = div.querySelector("#roundEndModal");
+        if (modalEl) {
+            const modal = new bootstrap.Modal(modalEl);
+            modal.show();
+        }
+    }
+
+    showMatchEnd(div) {
+        const bs = this.battleState;
+        const playerWon = bs.opponentKOs >= 3;
+
+        const titleEl = div.querySelector("#round-end-title");
+        const msgEl = div.querySelector("#round-end-message");
+        const scoreEl = div.querySelector("#round-end-score");
+        const btnsEl = div.querySelector("#round-end-buttons");
+
+        if (titleEl) titleEl.textContent = playerWon ? "Victory! 🎉" : "Defeated! 💀";
+        if (msgEl) msgEl.textContent = playerWon ? "You defeated the opponent!" : "Your team has been defeated...";
+        if (scoreEl) scoreEl.textContent = `Final Score: ${bs.opponentKOs} - ${bs.playerKOs}`;
+        if (btnsEl) {
+            btnsEl.innerHTML = `
+                <button class="btn btn-primary me-2" id="play-again-btn">🔄 Play Again</button>
+                <button class="btn btn-outline-secondary" id="back-home-btn">🏠 Back to Home</button>
+            `;
+            btnsEl.querySelector("#play-again-btn").onclick = () => {
+                const modal = bootstrap.Modal.getInstance(div.querySelector("#roundEndModal"));
+                if (modal) modal.hide();
+                this.resetBattleState();
+                this.render();
+            };
+            btnsEl.querySelector("#back-home-btn").onclick = () => {
+                const modal = bootstrap.Modal.getInstance(div.querySelector("#roundEndModal"));
+                if (modal) modal.hide();
+                this.resetBattleState();
+                this.currentView = "home";
+                this.render();
+            };
+        }
+
+        const modalEl = div.querySelector("#roundEndModal");
+        if (modalEl) {
+            const modal = new bootstrap.Modal(modalEl);
+            modal.show();
+        }
     }
 
     renderSearch() {

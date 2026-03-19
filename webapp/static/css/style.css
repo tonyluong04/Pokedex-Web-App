@@ -519,3 +519,266 @@ select:focus {
 .container.mt-5 {
     flex: 1;
 }
+
+/* ===== BATTLE ARENA ===== */
+
+.battle-arena {
+    position: relative;
+    min-height: 500px;
+    background-image: url('/static/images/arena.webp');
+    background-size: cover;
+    background-position: center;
+    background-repeat: no-repeat;
+    border-radius: 12px;
+    overflow: hidden;
+    border: 3px solid var(--pokeball-black);
+}
+
+.battle-arena-overlay {
+    position: absolute;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.15);
+}
+
+.battle-score {
+    position: absolute;
+    top: 16px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 10;
+    background: rgba(0, 0, 0, 0.8);
+    color: #fff;
+    padding: 0.5rem 1.5rem;
+    border-radius: 30px;
+    font-weight: 700;
+    font-size: 1.1rem;
+    white-space: nowrap;
+}
+
+.battle-pokemon-card {
+    position: absolute;
+    bottom: 24px;
+    z-index: 10;
+    background: rgba(0, 0, 0, 0.75);
+    color: #fff;
+    border-radius: 12px;
+    padding: 1rem;
+    width: 220px;
+    text-align: center;
+}
+
+.battle-pokemon-card.player {
+    left: 32px;
+}
+
+.battle-pokemon-card.opponent {
+    right: 32px;
+}
+
+.battle-pokemon-card img.battle-sprite {
+    width: 120px;
+    height: 120px;
+    image-rendering: auto;
+}
+
+.battle-pokemon-card img.battle-sprite.mirrored {
+    transform: scaleX(-1);
+}
+
+.battle-pokemon-card .pokemon-name {
+    font-weight: 700;
+    font-size: 1rem;
+    text-transform: capitalize;
+    margin: 0.25rem 0;
+}
+
+.battle-hp-bar {
+    height: 12px;
+    border-radius: 6px;
+    overflow: hidden;
+    background: rgba(255, 255, 255, 0.2);
+    margin-top: 0.5rem;
+}
+
+.battle-hp-bar .progress-bar {
+    transition: width 0.3s ease;
+}
+
+.battle-hp-bar .progress-bar.hp-green {
+    background-color: #28a745;
+}
+
+.battle-hp-bar .progress-bar.hp-yellow {
+    background-color: #ffc107;
+}
+
+.battle-hp-bar .progress-bar.hp-red {
+    background-color: #dc3545;
+}
+
+.battle-hp-text {
+    font-size: 0.75rem;
+    color: #ccc;
+    margin-top: 0.25rem;
+}
+
+.battle-log {
+    max-height: 200px;
+    overflow-y: auto;
+    background: var(--pokeball-black);
+    color: #ccc;
+    border-radius: 8px;
+    padding: 0.75rem;
+    font-size: 0.85rem;
+    font-family: var(--font-main);
+}
+
+.battle-log p {
+    margin: 0.15rem 0;
+    padding: 0.15rem 0;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.battle-log p:last-child {
+    border-bottom: none;
+}
+
+.battle-log .log-damage {
+    color: #ff6b6b;
+}
+
+.battle-log .log-faint {
+    color: #ffc107;
+    font-weight: 700;
+}
+
+.battle-log .log-round {
+    color: #74b9ff;
+    font-weight: 700;
+}
+
+/* Team selection grid */
+.team-select-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+    gap: 0.75rem;
+}
+
+.team-select-card {
+    background: var(--pokeball-white);
+    border: 2px solid #dee2e6;
+    border-radius: 10px;
+    text-align: center;
+    padding: 0.75rem 0.5rem;
+    cursor: pointer;
+    transition: all 0.25s ease;
+}
+
+.team-select-card:hover {
+    border-color: var(--pokeball-red);
+    transform: translateY(-4px);
+    box-shadow: 0 6px 16px rgba(220, 20, 60, 0.2);
+}
+
+.team-select-card.selected {
+    border-color: var(--pokeball-red);
+    background: rgba(220, 20, 60, 0.08);
+    box-shadow: 0 0 0 3px rgba(220, 20, 60, 0.25);
+}
+
+.team-select-card img {
+    width: 64px;
+    height: 64px;
+}
+
+.team-select-card .name {
+    font-size: 0.8rem;
+    font-weight: 600;
+    text-transform: capitalize;
+    margin-top: 0.25rem;
+}
+
+/* Round intro modal overrides */
+.round-intro-modal .modal-content {
+    background: var(--pokeball-black);
+    color: #fff;
+    border: 2px solid var(--pokeball-red);
+    text-align: center;
+}
+.round-intro-modal .modal-content h2 {
+    color: #fff;
+}
+
+.round-intro-fighters {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 1.5rem;
+    margin: 1rem 0;
+}
+
+.round-intro-fighters img {
+    width: 96px;
+    height: 96px;
+}
+
+.round-intro-fighters .vs {
+    font-size: 2rem;
+    font-weight: 900;
+    color: var(--pokeball-red);
+}
+
+.round-intro-fighters .fighter-name {
+    font-size: 0.9rem;
+    text-transform: capitalize;
+    margin-top: 0.25rem;
+}
+
+/* Battle result modal */
+.battle-result-modal .modal-content {
+    background: var(--pokeball-black);
+    color: #fff;
+    border: 2px solid var(--pokeball-red);
+    text-align: center;
+}
+.battle-result-modal .modal-content h2 {
+    color: #fff;
+}
+
+.battle-result-modal .modal-content p {
+    color: #ccc;
+}
+
+.battle-result-modal .modal-content .btn-outline-secondary {
+    color: var(--pokeball-white);
+    border-color: var(--pokeball-red);
+    background-color: var(--pokeball-red);
+}
+
+.battle-result-modal .modal-content .btn-outline-secondary:hover {
+    background-color: #FF1744;
+    border-color: #FF1744;
+    color: var(--pokeball-white);
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+    .battle-pokemon-card {
+        width: 160px;
+        padding: 0.5rem;
+    }
+    .battle-pokemon-card img.battle-sprite {
+        width: 80px;
+        height: 80px;
+    }
+    .battle-pokemon-card.player {
+        left: 8px;
+    }
+    .battle-pokemon-card.opponent {
+        right: 8px;
+    }
+    .battle-score {
+        font-size: 0.85rem;
+        padding: 0.35rem 1rem;
+    }
+}

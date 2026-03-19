@@ -68,6 +68,10 @@ def create_app(config=None):
     from webapp.routes.pokemon import pokemon_bp
     app.register_blueprint(pokemon_bp, url_prefix="/api")
     
+    # Battle API (Phase 3)
+    from webapp.routes.battle import battle_bp
+    app.register_blueprint(battle_bp, url_prefix="/api")
+
     # ===== Routes (Phase 0) =====
     
     @app.route('/')

@@ -2,7 +2,6 @@
 
 A single-page web application for browsing Pokémon via the PokéAPI, managing a personal Pokémon collection ("My Pokéball"), and preparing for turn-based battles. Built with a Flask backend, PostgreSQL database, Google OAuth authentication, and a vanilla JavaScript frontend.
 
-Developed as part of CSIT121 Object Oriented Design and Programming at the University of Wollongong.
 
 ---
 
@@ -134,7 +133,6 @@ A3/
 ├── .env                       # Environment variables (not committed)
 ├── .gitignore
 ├── Pokedex_PRD_v2.md          # Project Requirements Document
-├── PHASES.md                  # Development phases tracker
 ├── README.md
 │
 └── webapp/
@@ -231,5 +229,4 @@ A3/
 ---
 
 ## License
-
-University coursework — CSIT121, University of Wollongong.
+Personal project
