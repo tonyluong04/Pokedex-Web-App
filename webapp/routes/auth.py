@@ -89,43 +89,37 @@ def google_callback():
     """
     Google OAuth callback handler.
     Processes OAuth response and creates/updates user session.
-    
-    Returns:
-        Redirect to dashboard on success, login page on failure
     """
-    # Verify state for CSRF protection
     state = session.get('oauth_state')
     if not state:
         return redirect(url_for('index'))
     
     try:
-        # Get authorization code from URL
         code = request.args.get('code')
         if not code:
             return redirect(url_for('index'))
         
-        # Exchange code for credentials
         flow = get_google_flow()
-        flow.fetch_token(code=code)
+        
+        # Build the full callback URL using the configured redirect URI
+        # This avoids scheme mismatch behind reverse proxies (Render uses http internally)
+        authorization_response = current_app.config['GOOGLE_REDIRECT_URI'] + '?' + request.query_string.decode('utf-8')
+        flow.fetch_token(authorization_response=authorization_response)
+        
         credentials = flow.credentials
         
-        # Get user info from ID token
         id_token = credentials.id_token
         user_info = verify_oauth2_token(id_token, Request(), current_app.config['GOOGLE_CLIENT_ID'])
         
-        # Extract user data
         google_id = user_info['sub']
         email = user_info['email']
         name = user_info.get('name', email)
         picture = user_info.get('picture')
         
-        # Create or update user in database
         user = User.from_google_oauth(google_id, email, name, picture)
         
-        # Log user in
         login_user(user)
         
-        # After successful login, send user to SPA shell at '/'
         return redirect(url_for('index'))
     
     except Exception as e:
