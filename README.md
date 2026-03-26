@@ -53,13 +53,13 @@ A single-page web application for browsing Pokémon via the PokéAPI, managing a
 
 5. **Create the `.env` file** in the project root (see [Environment Variables](#environment-variables) below).
 
-6. **Initialize the database:**
+6. **Run the app:**
 
    ```bash
-   python init_db.py
+   python webapp/app.py
    ```
 
-   > Note: The app also runs `db.create_all()` automatically on startup, so this step is optional.
+   > Database tables are created automatically on startup via `db.create_all()` in `create_app()`.
 
 ---
 
@@ -127,7 +127,6 @@ gunicorn "webapp.app:create_app()" --bind 0.0.0.0:5000
 ```
 A3/
 ├── config.py                  # Flask configuration (Dev / Test / Prod)
-├── init_db.py                 # Database initialization script
 ├── requirements.txt           # Python dependencies
 ├── client_secrets.json        # Google OAuth credentials (not committed)
 ├── .env                       # Environment variables (not committed)
@@ -145,18 +144,26 @@ A3/
     │
     ├── routes/
     │   ├── auth.py            # Google OAuth login/logout/status routes
-    │   └── pokemon.py         # PokéAPI browsing + My Pokéball CRUD routes
+    │   ├── pokemon.py         # PokéAPI browsing + My Pokéball CRUD routes
+    │   └── battle.py          # Battle opponent generation + team hydration
+    │
+    ├── utils/
+    │   ├── db_helpers.py      # Shared DB utilities (get_or_create)
+    │   └── pokeapi.py         # Shared PokéAPI helper functions
     │
     ├── templates/
     │   └── index.html         # SPA shell (single HTML entry point)
     │
     └── static/
         ├── css/
-        │   └── style.css      # Custom styles (Pokéball theme)
+        │   └── style.css      # Custom styles (Pokéball theme, battle arena)
         ├── js/
         │   └── app.js         # SPA logic (PokemonAppV2 class)
         └── images/
-            └── pokeball.png   # Pokéball image asset
+            ├── pokeball.png
+            ├── landing.gif
+            ├── battle.jpg
+            └── arena.webp
 ```
 
 ---

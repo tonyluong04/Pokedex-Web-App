@@ -17,7 +17,6 @@ class Config:
     
     # SQLAlchemy
     SQLALCHEMY_TRACK_MODIFICATIONS = False
-    SQLALCHEMY_ECHO = True  # Log SQL queries in development
     
     # Session
     SESSION_COOKIE_SECURE = os.getenv('SESSION_COOKIE_SECURE', 'False') == 'True'
@@ -39,6 +38,7 @@ class DevelopmentConfig(Config):
     DEBUG = True
     TESTING = False
     SQLALCHEMY_DATABASE_URI = os.getenv('DATABASE_URL', 'postgresql://localhost/pokedex_v2_dev')
+    SQLALCHEMY_ECHO = True  # Log SQL queries in development only
 
 
 class TestingConfig(Config):

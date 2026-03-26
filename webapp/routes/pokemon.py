@@ -6,59 +6,18 @@ Phase 1: PokéAPI browsing + personal collection (My Pokéball)
 
 from __future__ import annotations
 
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List
 
 import requests
-from flask import Blueprint, current_app, jsonify, request
+from flask import Blueprint, jsonify, request
 from flask_login import login_required, current_user
 
 from webapp.extensions import db
 from webapp.models.pokemon import UserPokemon
+from webapp.utils.pokeapi import pokeapi_get_json, pokemon_detail
 
 
 pokemon_bp = Blueprint("pokemon", __name__)
-
-
-def _pokeapi_get_json(path: str, *, params: Optional[dict] = None) -> Dict[str, Any]:
-    base = current_app.config.get("POKEAPI_BASE_URL", "https://pokeapi.co/api/v2").rstrip("/")
-    url = f"{base}{path}"
-    resp = requests.get(url, params=params, timeout=10)
-    resp.raise_for_status()
-    return resp.json()
-
-
-def _sprite_from_pokemon(payload: Dict[str, Any]) -> Optional[str]:
-    sprites = payload.get("sprites") or {}
-    other = sprites.get("other") or {}
-    official = (other.get("official-artwork") or {}).get("front_default")
-    return official or sprites.get("front_default")
-
-
-def _pokemon_detail_from_payload(payload: Dict[str, Any]) -> Dict[str, Any]:
-    stats = []
-    for s in payload.get("stats", []):
-        stat_name = (s.get("stat") or {}).get("name")
-        base_stat = s.get("base_stat")
-        if stat_name is not None and base_stat is not None:
-            stats.append({"name": stat_name, "base": base_stat})
-
-    types = []
-    for t in payload.get("types", []):
-        type_name = (t.get("type") or {}).get("name")
-        if type_name:
-            types.append(type_name)
-
-    return {
-        "id": payload.get("id"),
-        "name": payload.get("name"),
-        "number": payload.get("id"),
-        "sprite": _sprite_from_pokemon(payload),
-        "types": types,
-        "stats": stats,
-        "height": payload.get("height"),
-        "weight": payload.get("weight"),
-        "base_experience": payload.get("base_experience"),
-    }
 
 
 @pokemon_bp.get("/pokemon/default")
@@ -74,7 +33,7 @@ def pokemon_default():
         limit = 12
 
     try:
-        listing = _pokeapi_get_json("/pokemon", params={"limit": limit, "offset": 0})
+        listing = pokeapi_get_json("/pokemon", params={"limit": limit, "offset": 0})
         results = listing.get("results", [])
 
         summaries: List[Dict[str, Any]] = []
@@ -82,8 +41,8 @@ def pokemon_default():
             name = item.get("name")
             if not name:
                 continue
-            detail = _pokeapi_get_json(f"/pokemon/{name}")
-            d = _pokemon_detail_from_payload(detail)
+            detail_payload = pokeapi_get_json(f"/pokemon/{name}")
+            d = pokemon_detail(detail_payload)
             summaries.append({"id": d["id"], "name": d["name"], "number": d["number"], "sprite": d["sprite"]})
 
         summaries.sort(key=lambda x: (x.get("number") or 0))
@@ -105,8 +64,8 @@ def pokemon_search():
         return jsonify({"error": "Missing query"}), 400
 
     try:
-        payload = _pokeapi_get_json(f"/pokemon/{query}")
-        d = _pokemon_detail_from_payload(payload)
+        payload = pokeapi_get_json(f"/pokemon/{query}")
+        d = pokemon_detail(payload)
         return jsonify({"results": [{"id": d["id"], "name": d["name"], "number": d["number"], "sprite": d["sprite"]}]})
     except requests.HTTPError:
         return jsonify({"results": []})
@@ -115,15 +74,15 @@ def pokemon_search():
 
 
 @pokemon_bp.get("/pokemon/<id_or_name>")
-def pokemon_detail(id_or_name: str):
+def pokemon_detail_route(id_or_name: str):
     """Get Pokémon detail by id or name."""
     q = (id_or_name or "").strip().lower()
     if not q:
         return jsonify({"error": "Missing id_or_name"}), 400
 
     try:
-        payload = _pokeapi_get_json(f"/pokemon/{q}")
-        return jsonify(_pokemon_detail_from_payload(payload))
+        payload = pokeapi_get_json(f"/pokemon/{q}")
+        return jsonify(pokemon_detail(payload))
     except requests.HTTPError as e:
         return jsonify({"error": "Pokémon not found", "detail": str(e)}), 404
     except Exception as e:
@@ -165,8 +124,8 @@ def my_pokeball_add():
         return jsonify({"error": "Pokéball is full (max 5)"}), 409
 
     try:
-        payload = _pokeapi_get_json(f"/pokemon/{pokemon_id_int}")
-        d = _pokemon_detail_from_payload(payload)
+        payload = pokeapi_get_json(f"/pokemon/{pokemon_id_int}")
+        d = pokemon_detail(payload)
         if not d.get("id") or not d.get("name"):
             return jsonify({"error": "Invalid Pokémon data from PokéAPI"}), 502
 

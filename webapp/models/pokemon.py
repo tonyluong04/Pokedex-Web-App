@@ -10,6 +10,7 @@ import uuid
 from sqlalchemy.dialects.postgresql import UUID
 
 from webapp.extensions import db
+from webapp.utils.db_helpers import get_or_create
 
 
 class UserPokemon(db.Model):
@@ -17,14 +18,6 @@ class UserPokemon(db.Model):
     UserPokemon model - represents a Pokémon in a user's personal Pokédex.
     
     References PokéAPI data by pokemon_id (not a copy).
-    
-    Fields:
-        id: Unique identifier
-        user_id: Foreign key to User
-        pokemon_id: PokéAPI Pokémon ID
-        pokemon_name: Pokémon name (cached from PokéAPI)
-        pokemon_number: National Pokédex number (cached from PokéAPI)
-        added_at: When user added this Pokémon to their Pokédex
     """
     
     __tablename__ = 'user_pokemon'
@@ -36,9 +29,9 @@ class UserPokemon(db.Model):
     user_id = db.Column(UUID(as_uuid=True), db.ForeignKey('users.id'), nullable=False, index=True)
     
     # PokéAPI Reference
-    pokemon_id = db.Column(db.Integer, nullable=False)  # PokéAPI ID
-    pokemon_name = db.Column(db.String(255), nullable=False)  # Cached from API
-    pokemon_number = db.Column(db.Integer, nullable=False)  # National Dex number
+    pokemon_id = db.Column(db.Integer, nullable=False)
+    pokemon_name = db.Column(db.String(255), nullable=False)
+    pokemon_number = db.Column(db.Integer, nullable=False)
     
     # Metadata (timezone-aware UTC)
     added_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
@@ -66,31 +59,20 @@ class UserPokemon(db.Model):
         """
         Add a Pokémon to user's Pokédex.
         
-        Args:
-            user_id: User's ID
-            pokemon_id: PokéAPI Pokémon ID
-            pokemon_name: Pokémon name
-            pokemon_number: National Pokédex number
-            
         Returns:
             UserPokemon object or None if duplicate
         """
-        # Check if already exists
-        existing = UserPokemon.query.filter_by(
-            user_id=user_id,
-            pokemon_id=pokemon_id
-        ).first()
-        
-        if existing:
-            return None  # Already in Pokédex
-        
-        user_pokemon = UserPokemon(
-            user_id=user_id,
-            pokemon_id=pokemon_id,
-            pokemon_name=pokemon_name,
-            pokemon_number=pokemon_number
+        instance, created = get_or_create(
+            UserPokemon,
+            filter_by={"user_id": user_id, "pokemon_id": pokemon_id},
+            defaults={
+                "pokemon_name": pokemon_name,
+                "pokemon_number": pokemon_number,
+            }
         )
-        db.session.add(user_pokemon)
+
+        if not created:
+            return None  # Already in Pokédex
+
         db.session.commit()
-        
-        return user_pokemon
+        return instance

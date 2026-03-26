@@ -454,10 +454,6 @@ class PokemonAppV2 {
             app.appendChild(this.renderBattle());
         } else if (this.currentView === "about") {
             app.appendChild(this.renderAbout());
-        } else if (this.currentView === "search") {
-            app.appendChild(this.renderSearch());
-        } else if (this.currentView === "detail") {
-            app.appendChild(this.renderDetail());
         }
     }
 
@@ -601,8 +597,7 @@ class PokemonAppV2 {
                             <div class="card-body">
                                 <h3 class="h5">About the developer</h3>
                                 <p class="text-muted mb-0">
-                                    I'm a second year Computer Science student at the University of Wollongong, 
-                                    currently pursuing AI & Big Data and Software Engineering.
+                                    I'm a second year Computer Science student, currently pursuing Software Engineering at the University of Wollongong.
                                 </p>
                             </div>
                         </div>
@@ -1274,18 +1269,6 @@ class PokemonAppV2 {
             const modal = new bootstrap.Modal(modalEl);
             modal.show();
         }
-    }
-
-    renderSearch() {
-        const div = document.createElement("div");
-        div.innerHTML = `<p>Search view - Phase 1.2</p>`;
-        return div;
-    }
-
-    renderDetail() {
-        const div = document.createElement("div");
-        div.innerHTML = `<p>Detail view - Phase 1.2</p>`;
-        return div;
     }
 
     // ===== UTILITIES =====

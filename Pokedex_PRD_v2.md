@@ -113,9 +113,10 @@ Pokédex Web App v2.0 is a Single Page Application (SPA) with a Flask backend. I
 |---|---|
 | `GET /api/pokemon/search?query=<nameOrId>` | Returns list of Pokémon summaries (id, name, sprite URL) |
 | `GET /api/pokemon/<idOrName>` | Returns Pokémon detail (id, name, number, types, stats, sprites) |
-| `GET /api/me/pokedex` | Returns the user's `UserPokemon[]` collection (auth required) |
-| `POST /api/me/pokedex` | Adds a Pokémon. Body: `{ pokemon_id, pokemon_name, pokemon_number }` |
-| `DELETE /api/me/pokedex/<pokemon_id>` | Removes a Pokémon from the user's collection (auth required) |
+| `GET /api/me/pokeball` | Returns the user's saved Pokémon (max 5, auth required) |
+| `POST /api/me/pokeball` | Adds a Pokémon. Body: `{ "pokemon_id": <int> }` |
+| `DELETE /api/me/pokeball/<pokemon_id>` | Removes a Pokémon from the user's collection (auth required) |
+| `POST /api/battle/start` | Starts battle. Body: `{ "team": [id1,...,id5] }`. Returns hydrated teams |
 
 ### UI Requirements — My Pokédex View
 
@@ -155,8 +156,7 @@ Pokédex Web App v2.0 is a Single Page Application (SPA) with a Flask backend. I
 
 | ID | Requirement |
 |---|---|
-| FR-B3 | Turn-based battle mechanics between two trainers (local simulation or online) |
-| FR-B4 | Real-time or pseudo-real-time communication via Socket.IO (optional) |
+| FR-B3 | Turn-based battle mechanics with type effectiveness, speed priority, best-of-5 rounds |
 
 ### Open Questions
 

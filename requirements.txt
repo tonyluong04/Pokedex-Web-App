@@ -12,18 +12,10 @@ psycopg2-binary==2.9.11
 # Authentication
 google-auth==2.25.2
 google-auth-oauthlib==1.2.0
-google-auth-httplib2==0.2.0
 python-dotenv==1.0.0
 
 # API & Data
 requests==2.31.0
-
-# Real-time (Phase 3)
-python-socketio==5.10.0
-python-engineio==4.8.0
-
-# Utilities
-Flask-Migrate==4.0.5
 
 # Development
 Werkzeug==3.0.0

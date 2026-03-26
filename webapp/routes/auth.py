@@ -67,13 +67,13 @@ def google_callback():
     # Verify state for CSRF protection
     state = session.get('oauth_state')
     if not state:
-        return redirect(url_for('auth.login_page'))
+        return redirect(url_for('index'))
     
     try:
         # Get authorization code from URL
         code = request.args.get('code')
         if not code:
-            return redirect(url_for('auth.login_page'))
+            return redirect(url_for('index'))
         
         # Exchange code for credentials
         flow = get_google_flow()
@@ -101,7 +101,7 @@ def google_callback():
     
     except Exception as e:
         print(f"OAuth callback error: {e}")
-        return redirect(url_for('auth.login_page'))
+        return redirect(url_for('index'))
 
 
 @auth_bp.route('/logout')
@@ -149,27 +149,3 @@ def profile():
     """
     return jsonify(current_user.to_dict())
 
-
-# ===== UI ROUTES (for development) =====
-
-@auth_bp.route('/login')
-def login_page():
-    """
-    Serve login page (development).
-    In production, frontend handles this.
-    """
-    # SPA at '/' handles login UI; keep this route only as a fallback
-    if current_user.is_authenticated:
-        return redirect(url_for('index'))
-    
-    return redirect(url_for('index'))
-
-
-@auth_bp.route('/dashboard')
-@login_required
-def dashboard():
-    """
-    Legacy development dashboard.
-    For SPA, the main UI lives at '/' and uses /auth/status.
-    """
-    return redirect(url_for('index'))

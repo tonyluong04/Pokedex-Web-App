@@ -8,6 +8,7 @@ from sqlalchemy.dialects.postgresql import UUID
 import uuid
 
 from webapp.extensions import db
+from webapp.utils.db_helpers import get_or_create
 
 
 class User(UserMixin, db.Model):
@@ -30,11 +31,6 @@ class User(UserMixin, db.Model):
     # Timestamps (timezone-aware UTC)
     created_at = db.Column(db.DateTime, nullable=False, default=lambda: datetime.now(timezone.utc))
     last_login = db.Column(db.DateTime)
-    updated_at = db.Column(db.DateTime, onupdate=lambda: datetime.now(timezone.utc))
-    
-    # Relationships (Phase 1.2+)
-    # Will add user_pokemon relationship when implementing UserPokemon model
-    # user_pokemon = db.relationship('UserPokemon', backref='user', lazy=True, cascade='all, delete-orphan')
     
     def __repr__(self):
         return f'<User {self.email}>'
@@ -64,29 +60,25 @@ class User(UserMixin, db.Model):
         Returns:
             User object (created or updated)
         """
-        # Try to find existing user by google_id
-        user = User.query.filter_by(google_id=google_id).first()
-        
-        if user:
-            # Update existing user
+        user, created = get_or_create(
+            User,
+            filter_by={"google_id": google_id},
+            defaults={
+                "email": email,
+                "name": name,
+                "picture": picture,
+                "is_active": True,
+                "last_login": datetime.now(timezone.utc),
+            }
+        )
+
+        if not created:
+            # Update existing user's fields
             user.email = email
             user.name = name
             if picture:
                 user.picture = picture
             user.last_login = datetime.now(timezone.utc)
-        else:
-            # Create new user
-            user = User(
-                google_id=google_id,
-                email=email,
-                name=name,
-                picture=picture,
-                is_active=True,
-                last_login=datetime.now(timezone.utc)
-            )
-            db.session.add(user)
-        
-        # Commit changes
+
         db.session.commit()
-        
         return user
