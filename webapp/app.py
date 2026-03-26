@@ -33,6 +33,11 @@ def create_app(config=None):
     # Load configuration
     if config is None:
         config = get_config()
+    
+    # Instantiate config class if it's a class (not already an instance)
+    if isinstance(config, type):
+        config = config()
+    
     app.config.from_object(config)
 
     # OAuth transport: allow HTTP in dev, require HTTPS in production

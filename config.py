@@ -55,13 +55,12 @@ class ProductionConfig(Config):
     TESTING = False
     SESSION_COOKIE_SECURE = True
 
-    @property
-    def SQLALCHEMY_DATABASE_URI(self):
+    def __init__(self):
         uri = os.getenv('DATABASE_URL', '')
         # Render uses postgres:// but SQLAlchemy requires postgresql://
         if uri.startswith('postgres://'):
             uri = uri.replace('postgres://', 'postgresql://', 1)
-        return uri
+        self.SQLALCHEMY_DATABASE_URI = uri
 
 
 # Select config based on environment
