@@ -19,19 +19,44 @@ auth_bp = Blueprint('auth', __name__, url_prefix='/auth')
 def get_google_flow():
     """
     Create and return a Google OAuth flow instance.
-    
-    Returns:
-        Flow object configured with Google OAuth credentials
+    Supports both client_secrets.json (local) and env vars (production).
     """
-    flow = Flow.from_client_secrets_file(
-        'client_secrets.json',  # Will create this in setup instructions
-        scopes=[
-            'https://www.googleapis.com/auth/userinfo.email',
-            'https://www.googleapis.com/auth/userinfo.profile',
-            'openid'
-        ],
-        redirect_uri=current_app.config['GOOGLE_REDIRECT_URI']
+    secrets_path = os.path.join(
+        os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),
+        'client_secrets.json'
     )
+
+    if os.path.exists(secrets_path):
+        # Local development: use file
+        flow = Flow.from_client_secrets_file(
+            secrets_path,
+            scopes=[
+                'https://www.googleapis.com/auth/userinfo.email',
+                'https://www.googleapis.com/auth/userinfo.profile',
+                'openid'
+            ],
+            redirect_uri=current_app.config['GOOGLE_REDIRECT_URI']
+        )
+    else:
+        # Production: use env vars
+        client_config = {
+            "web": {
+                "client_id": current_app.config['GOOGLE_CLIENT_ID'],
+                "client_secret": current_app.config['GOOGLE_CLIENT_SECRET'],
+                "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+                "token_uri": "https://oauth2.googleapis.com/token",
+                "redirect_uris": [current_app.config['GOOGLE_REDIRECT_URI']],
+            }
+        }
+        flow = Flow.from_client_config(
+            client_config,
+            scopes=[
+                'https://www.googleapis.com/auth/userinfo.email',
+                'https://www.googleapis.com/auth/userinfo.profile',
+                'openid'
+            ],
+            redirect_uri=current_app.config['GOOGLE_REDIRECT_URI']
+        )
     return flow
 
 

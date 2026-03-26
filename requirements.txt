@@ -6,7 +6,6 @@ Flask-CORS==4.0.0
 
 # Database
 SQLAlchemy==2.0.36
-# Use pre-built wheel for Windows
 psycopg2-binary==2.9.11
 
 # Authentication
@@ -16,6 +15,9 @@ python-dotenv==1.0.0
 
 # API & Data
 requests==2.31.0
+
+# Production Server
+gunicorn==21.2.0
 
 # Development
 Werkzeug==3.0.0

@@ -34,7 +34,17 @@ def create_app(config=None):
     if config is None:
         config = get_config()
     app.config.from_object(config)
-    
+
+    # OAuth transport: allow HTTP in dev, require HTTPS in production
+    if app.debug:
+        os.environ['OAUTHLIB_INSECURE_TRANSPORT'] = '1'
+    else:
+        os.environ.pop('OAUTHLIB_INSECURE_TRANSPORT', None)
+
+    # Trust proxy headers (Render terminates SSL at its proxy)
+    from werkzeug.middleware.proxy_fix import ProxyFix
+    app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1)
+
     # Initialize extensions
     db.init_app(app)
     login_manager.init_app(app)
