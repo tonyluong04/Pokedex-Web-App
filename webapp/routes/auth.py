@@ -19,15 +19,20 @@ auth_bp = Blueprint('auth', __name__, url_prefix='/auth')
 def get_google_flow():
     """
     Create and return a Google OAuth flow instance.
-    Supports both client_secrets.json (local) and env vars (production).
+    Uses env vars in production, client_secrets.json in local dev.
     """
-    secrets_path = os.path.join(
-        os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),
-        'client_secrets.json'
-    )
+    use_file = False
 
-    if os.path.exists(secrets_path):
-        # Local development: use file
+    # Only use file in development
+    if current_app.debug:
+        secrets_path = os.path.join(
+            os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),
+            'client_secrets.json'
+        )
+        if os.path.exists(secrets_path):
+            use_file = True
+
+    if use_file:
         flow = Flow.from_client_secrets_file(
             secrets_path,
             scopes=[
@@ -38,7 +43,6 @@ def get_google_flow():
             redirect_uri=current_app.config['GOOGLE_REDIRECT_URI']
         )
     else:
-        # Production: use env vars
         client_config = {
             "web": {
                 "client_id": current_app.config['GOOGLE_CLIENT_ID'],
