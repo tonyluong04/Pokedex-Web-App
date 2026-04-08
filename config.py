@@ -61,6 +61,9 @@ class ProductionConfig(Config):
         if uri.startswith('postgres://'):
             uri = uri.replace('postgres://', 'postgresql://', 1)
         self.SQLALCHEMY_DATABASE_URI = uri
+        self.SQLALCHEMY_ENGINE_OPTIONS = {
+            "connect_args": {"sslmode": "require"}
+        }
 
 
 # Select config based on environment
