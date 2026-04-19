@@ -122,7 +122,6 @@ gunicorn "webapp.app:create_app()" --bind 0.0.0.0:5000
 ## Project Structure
 
 ```
-A3/
 ├── config.py                  # Flask configuration (Dev / Test / Prod)
 ├── requirements.txt           # Python dependencies
 ├── client_secrets.json        # Google OAuth credentials (not committed)
