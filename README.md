@@ -30,9 +30,6 @@ A single-page web application for browsing Pokémon via the PokéAPI, managing a
 
 1. **Clone the repository** and navigate to the project directory:
 
-   ```bash
-   cd A3
-   ```
 
 2. **Create and activate a virtual environment:**
 
